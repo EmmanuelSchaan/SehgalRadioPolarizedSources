@@ -1,5 +1,6 @@
 input/
 output/
 old/
+log/
 *.pyc
 .ipynb_checkpoints/
