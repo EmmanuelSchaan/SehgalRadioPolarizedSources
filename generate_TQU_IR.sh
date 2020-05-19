@@ -15,17 +15,35 @@
 #       1.80338389e+01, 4.60361725e+01, 1.17519580e+02, 3.00000000e+02])
 # Actually, this doesn't seem to really be the case...
 
-python generate_TQU_IR.py "IRgal_S_1.dat"
-python generate_TQU_IR.py "IRgal_S_2.dat"
-python generate_TQU_IR.py "IRgal_S_3.dat"
-python generate_TQU_IR.py "IRgal_S_4.dat"
-python generate_TQU_IR.py "IRgal_S_5.dat"
-python generate_TQU_IR.py "IRgal_S_6.dat"
-python generate_TQU_IR.py "IRgal_S_7.dat"
-python generate_TQU_IR.py "IRgal_S_8.dat"
-python generate_TQU_IR.py "IRgal_S_9.dat"
-python generate_TQU_IR.py "IRgal_S_10.dat"
-python generate_TQU_IR.py "IRgal_S_11.dat"
 
+# First, generate the healpix maps
+#python generate_TQU_IR_hp.py "IRgal_S_1"
+#python generate_TQU_IR_hp.py "IRgal_S_2"
+#python generate_TQU_IR_hp.py "IRgal_S_3"
+#python generate_TQU_IR_hp.py "IRgal_S_4"
+#python generate_TQU_IR_hp.py "IRgal_S_5"
+#python generate_TQU_IR_hp.py "IRgal_S_6"
+#python generate_TQU_IR_hp.py "IRgal_S_7"
+#python generate_TQU_IR_hp.py "IRgal_S_8"
+#python generate_TQU_IR_hp.py "IRgal_S_9"
+#python generate_TQU_IR_hp.py "IRgal_S_10"
+#python generate_TQU_IR_hp.py "IRgal_S_11"
+## BLAST very high flux population
+#python generate_TQU_IR_hp.py "IRBlastPop"
+
+
+# Then, extract the cutouts
+python generate_TQU_IR_cutouts.py "IRgal_S_1"
+python generate_TQU_IR_cutouts.py "IRgal_S_2"
+python generate_TQU_IR_cutouts.py "IRgal_S_3"
+python generate_TQU_IR_cutouts.py "IRgal_S_4"
+python generate_TQU_IR_cutouts.py "IRgal_S_5"
+python generate_TQU_IR_cutouts.py "IRgal_S_6"
+python generate_TQU_IR_cutouts.py "IRgal_S_7"
+python generate_TQU_IR_cutouts.py "IRgal_S_8"
+python generate_TQU_IR_cutouts.py "IRgal_S_9"
+python generate_TQU_IR_cutouts.py "IRgal_S_10"
+python generate_TQU_IR_cutouts.py "IRgal_S_11"
 # BLAST very high flux population
-python generate_TQU_IR.py "IRBlastPop"
+python generate_TQU_IR_cutouts.py "IRBlastPop"
+

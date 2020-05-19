@@ -3,4 +3,5 @@ output/
 old/
 log/
 *.pyc
+.*.swp
 .ipynb_checkpoints/

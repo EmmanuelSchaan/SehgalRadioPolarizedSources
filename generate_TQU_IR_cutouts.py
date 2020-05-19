@@ -23,124 +23,18 @@ import sys
 # Choose input file
 sourceCatalog = sys.argv[1]
 
-#sourceCatalog = "IRBlastPop"
+
+pathIn = "./output/sehgal_maps/ir_sources/"
+pathOut = "./output/sehgal_maps/ir_sources/cutouts/"
 
 
-
-
-
-pathInDir = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/input/sehgal_ir_galaxies/"
-pathIn = pathInDir + sourceCatalog + ".dat"
-
-# read file
-data = np.genfromtxt(pathIn)#, max_rows=nObjMax)
-IObj = data[:,0]
-ra = data[:,1]
-dec = data[:,2]
-z = data[:,3]
-# f30_mJy = data[:,4]
-# f90_mJy = data[:,5]
-f148_mJy = data[:,6]
-# f219_mJy = data[:,7]
-# f277_mJy = data[:,8]
-# f350_mJy = data[:,9]
-
-print len(ra), "sources"
-
-
-if f148_mJy.min() >= 100.: # [mJy]
-   print "No source below 100mJy in this catalog"
-   print "Stopping here!"
-   sys.exit()
-
-
-# Throw out the objects outside of the quadrant
-
-# In[13]:
-
-
-I = np.where((ra>=0.)*(ra<=90.)*(dec>=0.)*(dec<=90.))[0]
-print "keeping", len(I), "objects out of", len(ra)
-print "ie a fraction", 1.*len(I)/len(ra)
-
-
-# In[14]:
-
-
-ra = ra[I]
-dec = dec[I]
-z = z[I]
-f148_mJy = f148_mJy[I]
-
-
-
-
-# # Generate T, Q, U maps
-
-
-# Map geometry to match the Sehgal maps
-nSide = 4096 #512#4096
-nPix = hp.nside2npix(nSide)
-
-
-# get pixel indices for all galaxies
-IPix = hp.ang2pix(nSide, np.pi/2. - dec*np.pi/180., ra*np.pi/180., lonlat=False)
-
-# In[29]:
-
-
-# Generate T map
-bins = np.arange(nPix+1)-0.5
-tMap, binEdges, binIndices = stats.binned_statistic(IPix, f148_mJy, statistic='sum', bins=bins)  # flux map [mJy]
-
-print "check that the map contains the flux from all the sources", np.sum(tMap), np.sum(f148_mJy)
-print "ratio is", np.sum(tMap) / np.sum(f148_mJy)
-
-tMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
-
-
-# In[30]:
-
-
-# polarization fraction: 3% from Trombetti+18 (to be improved)
-alpha = 0.03
-# polarization angles:
-theta = np.random.uniform(low=0., high=np.pi, size=len(ra))
-
-# Generate Q and U maps
-qMap, binEdges, binIndices = stats.binned_statistic(IPix, f148_mJy * alpha * np.cos(2.*theta), statistic='sum', bins=bins)  # flux map [mJy]
-qMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
-
-uMap, binEdges, binIndices = stats.binned_statistic(IPix, f148_mJy * alpha * np.sin(2.*theta), statistic='sum', bins=bins)  # flux map [mJy]
-uMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
-
-
-# ## Convert all maps from [mJy/sr] to [muKcmb]
-
-# In[31]:
+# read healpix maps
+tMap = hp.read_map(pathIn + "t_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits")
+qMap = hp.read_map(pathIn + "q_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits")
+uMap = hp.read_map(pathIn + "u_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits")
 
 
 cmb = CMB(beam=1., noise=1., nu1=148.e9, nu2=148.e9, lMin=30., lMaxT=3.e3, lMaxP=5.e3, fg=True, atm=False, name=None)
-
-tMap *= 1.e-3 * 1.e-26  # convert from [mJy/sr] to surf bright per unit freq = [W/m^2/Hz/sr]
-tMap /= cmb.dBdT(148.e9, cmb.Tcmb)  # convert from surf bright per unit freq = [W/m^2/sr/Hz] to Kcmb
-tMap *= 1.e6  # convert from Kcmb to muKcmb
-
-qMap *= 1.e-3 * 1.e-26  # convert from [mJy/sr] to surf bright per unit freq = [W/m^2/Hz/sr]
-qMap /= cmb.dBdT(148.e9, cmb.Tcmb)  # convert from surf bright per unit freq = [W/m^2/sr/Hz] to Kcmb
-qMap *= 1.e6  # convert from Kcmb to muKcmb
-
-uMap *= 1.e-3 * 1.e-26  # convert from [mJy/sr] to surf bright per unit freq = [W/m^2/Hz/sr]
-uMap /= cmb.dBdT(148.e9, cmb.Tcmb)  # convert from surf bright per unit freq = [W/m^2/sr/Hz] to Kcmb
-uMap *= 1.e6  # convert from Kcmb to muKcmb
-
-
-# The Lambda website says:
-# dT = [Jy/sr] * T_CMB / 1.072480e9 in [T_CMB units]
-# Check that it works:
-print "My conversion agrees with the Lambda website recommendation:", 1.e-26 / cmb.dBdT(148.e9, cmb.Tcmb), cmb.Tcmb / 1.072480e9
-
-
 
 
 
@@ -246,11 +140,11 @@ for latCenter in LatCenter:
             
          # save the cutouts
 #          np.savetxt("./output/sehgal_maps/cutouts/ps_official_sehgal_T_patch"+str(nPatches)+".txt", cutSehgalTMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ir_"+catalogName+"_sehgal_T_patch"+str(nPatches)+".txt", cutTMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ir_"+catalogName+"_sehgal_Q_patch"+str(nPatches)+".txt", cutQMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ir_"+catalogName+"_sehgal_U_patch"+str(nPatches)+".txt", cutUMap)
+         np.savetxt(pathOut + "ir_"+sourceCatalog+"_sehgal_T_patch"+str(nPatches)+".txt", cutTMap)
+         np.savetxt(pathOut + "ir_"+sourceCatalog+"_sehgal_Q_patch"+str(nPatches)+".txt", cutQMap)
+         np.savetxt(pathOut + "ir_"+sourceCatalog+"_sehgal_U_patch"+str(nPatches)+".txt", cutUMap)
 #          np.savetxt("./output/sehgal_maps/cutouts/kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ir_"+catalogName+"_mask_"+str(np.int(round(fluxCutmJy)))+"mJy_T_patch"+str(nPatches)+".txt", psMask)
+         np.savetxt(pathOut + "ir_"+sourceCatalog+"_mask_"+str(np.int(round(fluxCutmJy)))+"mJy_T_patch"+str(nPatches)+".txt", psMask)
          
 print "Extracted "+str(nPatches)+" cutouts"
 
