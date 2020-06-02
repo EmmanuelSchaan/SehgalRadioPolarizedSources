@@ -165,6 +165,13 @@ uMap *= 1.e6  # convert from Kcmb to muKcmb
 print "My conversion agrees with the Lambda website recommendation:", 1.e-26 / cmb.dBdT(148.e9, cmb.Tcmb), cmb.Tcmb / 1.072480e9
 
 
+print "Saving healpix maps"
+pathOut = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/output/sehgal_maps/radio_sources/"
+hp.write_map(pathOut + "t_radio_sehgal_148ghz_muk.fits", tMap, overwrite=True)
+hp.write_map(pathOut + "q_radio_sehgal_148ghz_muk.fits", qMap, overwrite=True)
+hp.write_map(pathOut + "u_radio_sehgal_148ghz_muk.fits", uMap, overwrite=True)
+
+
 # ## Read the kappa map
 
 # In[24]:
@@ -273,13 +280,23 @@ for latCenter in LatCenter:
          cutTMapFourier = baseMap.fourier(cutTMap)
          psMask = baseMap.pointSourceMaskMatchedFilterIsotropic(cmb.ftotalTT, fluxCut, fprof=None, dataFourier=cutTMapFourier, maskPatchRadius=maskPatchRadius, test=False)    
             
+#         # save the cutouts
+#         np.savetxt("./output/sehgal_maps/cutouts/ps_official_sehgal_T_patch"+str(nPatches)+".txt", cutSehgalTMap)
+#         np.savetxt("./output/sehgal_maps/cutouts/ps_sehgal_T_patch"+str(nPatches)+".txt", cutTMap)
+#         np.savetxt("./output/sehgal_maps/cutouts/ps_sehgal_Q_patch"+str(nPatches)+".txt", cutQMap)
+#         np.savetxt("./output/sehgal_maps/cutouts/ps_sehgal_U_patch"+str(nPatches)+".txt", cutUMap)
+#         np.savetxt("./output/sehgal_maps/cutouts/kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap)
+#         np.savetxt("./output/sehgal_maps/cutouts/ps_mask_"+str(np.int(round(fluxCutmJy)))+"mJy_T_patch"+str(nPatches)+".txt", psMask)
+
          # save the cutouts
-         np.savetxt("./output/sehgal_maps/cutouts/ps_official_sehgal_T_patch"+str(nPatches)+".txt", cutSehgalTMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ps_sehgal_T_patch"+str(nPatches)+".txt", cutTMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ps_sehgal_Q_patch"+str(nPatches)+".txt", cutQMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ps_sehgal_U_patch"+str(nPatches)+".txt", cutUMap)
-         np.savetxt("./output/sehgal_maps/cutouts/kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap)
-         np.savetxt("./output/sehgal_maps/cutouts/ps_mask_"+str(np.int(round(fluxCutmJy)))+"mJy_T_patch"+str(nPatches)+".txt", psMask)
+         pathOut = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/output/sehgal_maps/radio_sources/cutouts/"
+         np.savetxt(pathOut + "ps_official_sehgal_T_patch"+str(nPatches)+".txt", cutSehgalTMap)
+         np.savetxt(pathOut + "ps_sehgal_T_patch"+str(nPatches)+".txt", cutTMap)
+         np.savetxt(pathOut + "ps_sehgal_Q_patch"+str(nPatches)+".txt", cutQMap)
+         np.savetxt(pathOut + "ps_sehgal_U_patch"+str(nPatches)+".txt", cutUMap)
+         np.savetxt(pathOut + "kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap)
+         np.savetxt(pathOut + "ps_mask_"+str(np.int(round(fluxCutmJy)))+"mJy_T_patch"+str(nPatches)+".txt", psMask)
+
          
 print "Extracted "+str(nPatches)+" cutouts"
 

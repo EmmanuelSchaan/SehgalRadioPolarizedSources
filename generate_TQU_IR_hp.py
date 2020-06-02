@@ -26,6 +26,7 @@ sourceCatalog = sys.argv[1]
 
 
 pathOut = "./output/sehgal_maps/ir_sources/"
+pathFig = "./figures/sehgal_maps/ir_sources/"
 
 
 pathInDir = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/input/sehgal_ir_galaxies/"
@@ -49,12 +50,21 @@ f148_mJy = data[:,6]
 del data
 
 print "Found", len(ra), "sources"
+print "min, max, median =", np.min(f148_mJy), np.max(f148_mJy), np.median(f148_mJy), "mJy"
+
+# histogram of source fluxes
+path = pathFig + "flux_count_"+sourceCatalog+".pdf"
+myHistogram(f148_mJy, nBins=101, nameLatex=r'$S_\text{148 GHz}$ [mJy]', semilogy=True, plot=True, path=path)
 
 
-if f148_mJy.min() >= 100.: # [mJy]
-   print "No source below 100mJy in this catalog"
-   print "Stopping here!"
-   sys.exit()
+#sys.exit()
+
+#if f148_mJy.min() >= 100.: # [mJy]
+#   print "No source below 100mJy in this catalog"
+#   print "Stopping here!"
+#   sys.exit()
+
+
 
 
 # Throw out the objects outside of the quadrant

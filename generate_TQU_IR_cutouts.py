@@ -32,7 +32,7 @@ pathOut = "./output/sehgal_maps/ir_sources/cutouts/"
 tMap = hp.read_map(pathIn + "t_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits")
 qMap = hp.read_map(pathIn + "q_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits")
 uMap = hp.read_map(pathIn + "u_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits")
-
+print "Done reading the T, Q, U maps"
 
 cmb = CMB(beam=1., noise=1., nu1=148.e9, nu2=148.e9, lMin=30., lMaxT=3.e3, lMaxP=5.e3, fg=True, atm=False, name=None)
 
@@ -40,7 +40,7 @@ cmb = CMB(beam=1., noise=1., nu1=148.e9, nu2=148.e9, lMin=30., lMaxT=3.e3, lMaxP
 
 
 
-# # Extract as many square cutouts as possible
+print "Extract as many square cutouts as possible"
 
 # In[42]:
 
@@ -146,6 +146,7 @@ for latCenter in LatCenter:
 #          np.savetxt("./output/sehgal_maps/cutouts/kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap)
          np.savetxt(pathOut + "ir_"+sourceCatalog+"_mask_"+str(np.int(round(fluxCutmJy)))+"mJy_T_patch"+str(nPatches)+".txt", psMask)
          
+print "All finished!"
 print "Extracted "+str(nPatches)+" cutouts"
 
 
