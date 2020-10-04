@@ -4,12 +4,12 @@
 #SBATCH -q regular
 #SBATCH -L SCRATCH   #Job requires $SCRATCH file system
 #SBATCH -C haswell   #Use haswell/knl nodes
-#SBATCH -t 04:59:59  #15:59:59  # hh:mm:ss
+#SBATCH -t 11:59:59  #15:59:59  # hh:mm:ss
 #SBATCH --mail-type=begin
 #SBATCH --mail-type=end
 #SBATCH --mail-user=eschaan@lbl.gov
-#SBATCH -o /global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/log/tqu_ir.out
-#SBATCH -e /global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/log/tqu_ir.err
+#SBATCH -o /global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/log/tqu_ir_hist.out
+#SBATCH -e /global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/log/tqu_ir_hist.err
 
 
 cd /global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/
@@ -17,7 +17,6 @@ source ~/python_profile.sh
 
 source ./generate_TQU_IR.sh
 
-# Then, extract the cutouts
 #python generate_TQU_IR_cutouts.py "IRgal_S_1"
 #python generate_TQU_IR_cutouts.py "IRgal_S_2"
 #python generate_TQU_IR_cutouts.py "IRgal_S_3"
