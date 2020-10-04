@@ -5,3 +5,4 @@ log/
 *.pyc
 .*.swp
 .ipynb_checkpoints/
+plots/
