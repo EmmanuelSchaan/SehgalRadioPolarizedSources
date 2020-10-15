@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[2]:
-
-
 import healpy as hp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,14 +9,35 @@ from flat_map import *
 
 import sys
 
+
+# needed on lawrencium
+plt.switch_backend('Agg')
+
+####################################################################
+
 # # Read one of the galaxy catalog
-
-# In[9]:
-
-
 # Choose input file
 sourceCatalog = sys.argv[1]
 
+
+#nu = np.float(sys.argv[2])
+#nuStr = str(np.int(nu/1.e9))
+#fluxCutmJy = np.float(sys.argv[3])
+#lKnee = np.float(sys.argv[4])
+#aKnee = np.float(sys.argv[5])
+#beamFwhm = np.float(sys.argv[6])
+#noiseT = np.float(sys.argv[7])
+#
+#print "nu", nu
+#print "nuStr", nuStr
+#print "fluxCutmJy", fluxCutmJy
+#print "lKnee", lKnee
+#print "aKnee", aKnee
+#print "beamFwhm", beamFwhm
+#print "noiseT", noiseT
+
+
+####################################################################
 
 pathIn = "./output/sehgal_maps/ir_sources/"
 pathOut = "./output/sehgal_maps/ir_sources/cutouts/"

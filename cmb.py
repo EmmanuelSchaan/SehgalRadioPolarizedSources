@@ -11,7 +11,7 @@ class CMB(object):
    def __str__(self):
       return self.name
    
-   def __init__(self, beam=1., noise=1., nu1=143.e9, nu2=143.e9, lMin=30., lMaxT=3.e3, lMaxP=5.e3, fg=True, atm=False, name=None):
+   def __init__(self, beam=1., noise=1., nu1=143.e9, nu2=143.e9, lMin=30., lMaxT=3.e3, lMaxP=5.e3, fg=True, atm=False, atmProp=None, name=None):
    
       # name
       self.name = "cmb_beam"+str(round(beam, 3))+"_noise"+str(round(noise, 3))+ "_nu"+str(np.int(nu1/1.e9))+"_nu"+str(np.int(nu2/1.e9))+"_lmin"+str(np.int(lMin))+"_lmaxT"+str(int(lMaxT))+"_lmaxP"+str(int(lMaxP))
@@ -30,6 +30,13 @@ class CMB(object):
       self.lMin = lMin
       self.lMaxT = lMaxT
       self.lMaxP = lMaxP
+
+      if atm:
+         if atmProp is None:
+            self.lKneeT, self.alphaT, self.lKneeP, self.alphaP = self.getAtmosphere()
+         else:
+            self.lKneeT, self.alphaT, self.lKneeP, self.alphaP = atmProp
+
       
       ##################################################################################
       
@@ -240,14 +247,12 @@ class CMB(object):
    
    
    def fatmosphericNoiseTT(self, l):
-      lKnee, alpha, _, _ = self.getAtmosphere()
-      result = (lKnee/l)**(-alpha)
+      result = (self.lKneeT/l)**(-self.alphaT)
       result *= self.fdetectorNoise(l)
       return result
 
    def fatmosphericNoisePP(self, l):
-      _, _, lKnee, alpha = self.getAtmosphere()
-      result = (lKnee/l)**(-alpha)
+      result = (self.lKneeP/l)**(-self.alphaP)
       result *= self.fdetectorNoise(l)
       result *= 2.   # noise is larger in polarization
       return result

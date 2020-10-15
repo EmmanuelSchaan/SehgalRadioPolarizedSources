@@ -16,11 +16,9 @@ plt.switch_backend('Agg')
 
 nu = 90.e9  # [Hz]
 nuStr = '90'
-fluxCutmJy = 2.  # [mJy]
 
 #nu = 148.e9  # [Hz]
 #nuStr = '148'
-#fluxCutmJy = 2.  # [mJy]
 
 
 ####################################################################
