@@ -1,6 +1,6 @@
 #!/bin/sh
 #SBATCH -A fc_cosmoml
-#SBATCH -p savio2_1080ti
+#SBATCH -p savio2_gpu
 #SBATCH -N 1
 #SBATCH -n 4 
 #SBATCH -c 2 
