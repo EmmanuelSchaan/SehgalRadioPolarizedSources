@@ -95,9 +95,13 @@ function get_foreground_whitenoise_level(;Ms_radio, gs_radio, gs_ir)
         end
     end))
 
-    μKarcmin_gs_ir = Dict(148 => mean(sims) do i
+    μKarcmin_gs_ir₀ = mean(sims) do i
         sqrt(mean(get_Cℓ(gs_ir[148][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
-    end)
+    end
+    μKarcmin_gs_ir = Dict(
+        (:deep,148,Inf) => μKarcmin_gs_ir₀,
+        (:wide,148,Inf) => μKarcmin_gs_ir₀
+    )
 
     (;μKarcmin_gs_radio, μKarcmin_gs_ir)
 
@@ -111,7 +115,7 @@ simulation-specific extra non-linear power).
 """
 function get_fiducial_Cℓ(ϕs)
 
-    Cℓ = camb(ωb=0.02268, ωc=0.1081, nₛ=0.961, H0=72.4, θs=nothing, logA=log(2.41*10), k_pivot=0.05, ℓmax=10000)
+    Cℓ = camb(r=0.001, ωb=0.02268, ωc=0.1081, nₛ=0.961, H0=72.4, θs=nothing, logA=log(2.41*10), k_pivot=0.05, ℓmax=10000)
 
     LP = LowPass(1100,Δℓ=200).diag.Wℓ
     HP = HighPass(901,Δℓ=200).diag.Wℓ

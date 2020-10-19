@@ -13,8 +13,8 @@ end
 ##
 
 dirs = [
-    "dat/sehgal_maps/radio_sources/cutouts/*.txt",
-    "dat/sehgal_maps/ir_sources/cutouts/*.txt",
+    "data/sehgal_maps/radio_sources/cutouts/*.txt",
+    "data/sehgal_maps/ir_sources/cutouts/*.txt",
 ]
 
 @showprogress pmap(mapreduce(glob, vcat, dirs)) do f_in
