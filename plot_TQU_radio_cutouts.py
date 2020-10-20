@@ -8,52 +8,56 @@ from cmb import *
 from flat_map import *
 
 # needed on lawrencium
-plt.switch_backend('Agg')
+# not on cori
+#plt.switch_backend('Agg')
 
 ####################################################################
 # Choose frequency
 
-nu = np.float(sys.argv[1])
-nuStr = str(np.int(nu/1.e9))
-fluxCutmJy = np.float(sys.argv[2])
-lKnee = np.float(sys.argv[3])
-aKnee = np.float(sys.argv[4])
-beamFwhm = np.float(sys.argv[5])
-noiseT = np.float(sys.argv[6])
+#nu = np.float(sys.argv[1])
+#nuStr = str(np.int(nu/1.e9))
+#fluxCutmJy = np.float(sys.argv[2])
+#lKnee = np.float(sys.argv[3])
+#aKnee = np.float(sys.argv[4])
+#beamFwhm = np.float(sys.argv[5])
+#noiseT = np.float(sys.argv[6])
+#
+#print "nu", nu
+#print "nuStr", nuStr
+#print "fluxCutmJy", fluxCutmJy
+#print "lKnee", lKnee
+#print "aKnee", aKnee
+#print "beamFwhm", beamFwhm
+#print "noiseT", noiseT
 
-print "nu", nu
-print "nuStr", nuStr
-print "fluxCutmJy", fluxCutmJy
-print "lKnee", lKnee
-print "aKnee", aKnee
-print "beamFwhm", beamFwhm
-print "noiseT", noiseT
+# Foreground map frequency
+#
+#nu = 90.e9  # [Hz]
+#nuStr = '90'
+nu = 148.e9  # [Hz]
+nuStr = '148'
 
 
-##nu = 90.e9  # [Hz]
-##nuStr = '90'
-#nu = 148.e9  # [Hz]
-#nuStr = '148'
+
+# Mask properties
 #
-#
-#fluxCutmJy = 10.  #5.   #2.  # [mJy]
-#
-#
-## wide survey
-#lKnee = 700.
-#aKnee = 1.4
-#beamFwhm = 1.4 # [arcmin] at 148 GHz
-##beamFwhm = 2.2 # [arcmin] at 90 GHz
-#noiseT = 2.  # [muK*arcmin] at 148 GHz 
-##noiseT = 2.  # [muK*arcmin] at 90 GHz
-#
-### deep survey
-##lKnee = 200.
-##aKnee = 2.
-##beamFwhm = 1.5 # [arcmin] at 148 GHz
-###beamFwhm = 2.3 # [arcmin] at 90 GHz
-##noiseT = 0.96  # [muK*arcmin] at 148 GHz 
-###noiseT = 0.68  # [muK*arcmin] at 90 GHz
+fluxCutmJy = 2. #10.  #5.   #2.  # [mJy]
+
+# wide survey
+lKnee = 700.
+aKnee = 1.4
+beamFwhm = 1.4 # [arcmin] at 148 GHz
+#beamFwhm = 2.2 # [arcmin] at 90 GHz
+noiseT = 2.  # [muK*arcmin] at 148 GHz 
+#noiseT = 2.  # [muK*arcmin] at 90 GHz
+
+## deep survey
+#lKnee = 200.
+#aKnee = 2.
+#beamFwhm = 1.5 # [arcmin] at 148 GHz
+##beamFwhm = 2.3 # [arcmin] at 90 GHz
+#noiseT = 0.96  # [muK*arcmin] at 148 GHz 
+##noiseT = 0.68  # [muK*arcmin] at 90 GHz
 
 
 cmb = CMB(beam=beamFwhm, noise=noiseT, nu1=nu, nu2=nu, lMin=30., lMaxT=3.e3, lMaxP=5.e3, fg=True, atm=True, atmProp=[lKnee, aKnee, lKnee, aKnee], name=None)
@@ -78,14 +82,18 @@ baseMap = FlatMap(nX=xSize, nY=ySize, sizeX=dLon*np.pi/180., sizeY=dLat*np.pi/18
 
 ####################################################################
 
-nPatches = 0
+nPatches = 1
 
 pathOut = "./output/sehgal_maps/radio_sources/cutouts/"
-pathOut + "ps_official_sehgal_"+nuStr+"ghz_T_patch"+str(nPatches)+".txt", cutSehgalTMap
-pathOut + "ps_sehgal_"+nuStr+"ghz_T_patch"+str(nPatches)+".txt", cutTMap
-pathOut + "ps_sehgal_"+nuStr+"ghz_Q_patch"+str(nPatches)+".txt", cutQMap
-pathOut + "ps_sehgal_"+nuStr+"ghz_U_patch"+str(nPatches)+".txt", cutUMap
-pathOut + "kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap
-pathOut + "ps_mask_"+nuStr+"ghz_"+str(np.int(round(fluxCutmJy)))+"mJy_beam"+str(round(beamFwhm,1))+"_noise"+str(round(noiseT,2))+"_lknee"+str(np.int(lKnee))+"_aknee"+str(round(aKnee,1))+"_T_patch"+str(nPatches)+".txt", psMask
+
+cutSehgalTMap = np.genfromtxt(pathOut + "ps_official_sehgal_"+nuStr+"ghz_T_patch"+str(nPatches)+".txt")
+cutTMap = np.genfromtxt(pathOut + "ps_sehgal_"+nuStr+"ghz_T_patch"+str(nPatches)+".txt")
+cutQMap = np.genfromtxt(pathOut + "ps_sehgal_"+nuStr+"ghz_Q_patch"+str(nPatches)+".txt")
+cutUMap = np.genfromtxt(pathOut + "ps_sehgal_"+nuStr+"ghz_U_patch"+str(nPatches)+".txt")
+
+cutKappaMap = np.genfromtxt(pathOut + "kappa_sehgal_patch"+str(nPatches)+".txt")
+
+psMask = np.genfromtxt(pathOut + "ps_mask_"+nuStr+"ghz_"+str(np.int(round(fluxCutmJy)))+"mJy_beam"+str(round(beamFwhm,1))+"_noise"+str(round(noiseT,2))+"_lknee"+str(np.int(lKnee))+"_aknee"+str(round(aKnee,1))+"_T_patch"+str(nPatches)+".txt")
 
 
+baseMap.plot(cutTMap)
