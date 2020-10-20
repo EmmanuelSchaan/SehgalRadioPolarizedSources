@@ -14,6 +14,10 @@
 
 
 cd /global/scratch/eschaan/SehgalRadioPolarizedSources/
+source ~/python_profile.sh
+
+# generate the full sky TQU maps
+#python generate_TQU_radio_hp.py
 
 # Syntax:
 #python generate_TQU_radio_cutouts.py nu fluxCutmJy lKnee aKnee beamFwhm noiseT
@@ -25,13 +29,13 @@ cd /global/scratch/eschaan/SehgalRadioPolarizedSources/
 #python generate_TQU_radio_cutouts.py 90.e9 2. 700. 1.4 2.2 2.
 # 148 GHz
 #python generate_TQU_radio_cutouts.py 148.e9 10. 700. 1.4 1.4 2.
-#python generate_TQU_radio_cutouts.py 148.e9 5. 700. 1.4 1.4 2.
-#python generate_TQU_radio_cutouts.py 148.e9 2. 700. 1.4 1.4 2.
+##python generate_TQU_radio_cutouts.py 148.e9 5. 700. 1.4 1.4 2.
+##python generate_TQU_radio_cutouts.py 148.e9 2. 700. 1.4 1.4 2.
 
 # deep survey
 # 90 GHz
-python generate_TQU_radio_cutouts.py 90.e9 10. 200. 2. 2.3 0.48
-python generate_TQU_radio_cutouts.py 90.e9 5. 200. 2. 2.3 0.48
+#python generate_TQU_radio_cutouts.py 90.e9 10. 200. 2. 2.3 0.48
+##python generate_TQU_radio_cutouts.py 90.e9 5. 200. 2. 2.3 0.48
 python generate_TQU_radio_cutouts.py 90.e9 2. 200. 2. 2.3 0.48
 # 148 GHz
 #python generate_TQU_radio_cutouts.py 148.e9 10. 200. 2. 1.5 0.68
