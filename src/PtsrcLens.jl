@@ -135,7 +135,7 @@ end
 """
 Compute the joint MAP for some sims.
 """
-function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, fluxcut, polfrac_scale, ℓedges, μKarcmin_g, Nbatch=16, MAPs=nothing)
+function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, ℓedges, μKarcmin_g, Nbatch=16, MAPs=nothing)
         
     @unpack ds = load_sim_dataset(;
         Cℓ = Cℓ,
@@ -149,53 +149,57 @@ function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, fluxcut, polfra
     @unpack B = ds
     ds.Cϕ = Cℓ_to_Cov(ϕs[1], (Cℓ.total.ϕϕ, ℓedges, :Aϕ));
 
-    μKarcmin_g = mean(sqrt(mean(get_Cℓ(Ms[fluxcut][i] * gs[i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2) for i=sims)
     Cℓg = noiseCℓs(μKarcminT=polfrac_scale*μKarcmin_g/√2, beamFWHM=0, ℓknee=0)
     Cg = Cℓ_to_Cov(Flat(Nside=300, θpix=2), Float32, S2, Cℓg.EE, Cℓg.BB)
     
-    @showprogress pmap(sims) do sim
+    @showprogress pmap(1:8) do sim
 
         sim′ = mod(sim,maximum(sims))+1
 
         Dict(map([
 
-            (:nofg,     :fgcov, 0,        Ms[fluxcut][sim],  ϕs[sim]),
-            (:corrfg,   :fgcov, gs[sim] , Ms[fluxcut][sim],  ϕs[sim]),
-            (:uncorrfg, :fgcov, gs[sim′], Ms[fluxcut][sim′], ϕs[sim]),
-#             (:nofg,     :nocov, 0,        Ms[fluxcut][sim],  ϕs[sim]),
-#             (:corrfg,   :nocov, gs[sim] , Ms[fluxcut][sim],  ϕs[sim]),
-#             (:uncorrfg, :nocov, gs[sim′], Ms[fluxcut][sim′], ϕs[sim])
+            (:nofg,     :fgcov, nothing,  nothing,  ϕs[sim]),
+            (:corrfg,   :fgcov, gs[sim] , Ms[sim],  ϕs[sim]),
+            (:uncorrfg, :fgcov, gs[sim′], Ms[sim′], ϕs[sim]),
+            (:gaussfg,  :fgcov, nothing , 1,        ϕs[sim]),
 
+            (:nofg,     :nocov, nothing,  nothing,  ϕs[sim]),
+            (:corrfg,   :nocov, gs[sim] , Ms[sim],  ϕs[sim]),
+            (:uncorrfg, :nocov, gs[sim′], Ms[sim′], ϕs[sim]),
+            (:gaussfg,  :nocov, nothing,  1,        ϕs[sim]),
+            
         ]) do (g_in_data, g_in_cov, g, M, ϕ)
 
             ds′ = resimulate(ds, ϕ=ϕ, seed=sim).ds
-            if g_in_cov != :nocov
+            if g_in_cov == :fgcov
                 ds′.Cn += polfrac_scale^2*B*Cg*B'
             end
-            if g_in_data != :nofg
-                ds′.d  += polfrac_scale*B*M*g
+            if g_in_data in [:corrfg, :uncorrfg]
+                ds′.d += polfrac_scale*B*M*g
+            elseif g_in_data == :gaussfg
+                g = simulate(Cg,seed=sim)
+                ds′.d += polfrac_scale*B*M*g
             end
             ds′ = cu(ds′)
 
-            (g_in_data,g_in_cov) => 
-                try
-                    if MAPs == nothing
-                        fJ,ϕJ = MAP_joint(
-                            ds′,
-                            Nϕ       = :qe,
-                            nsteps   = 30,
-                            progress = false,
-                        )
-                    else
-                        fJ, ϕJ = cu.(MAPs[sim][g_in_data,g_in_cov][1:2])
-                    end
-                    g = gradient(Aϕ -> lnP(0,fJ,ϕJ,(Aϕ=Aϕ,),ds′), ones(Float32,length(ℓedges)-1))[1]
-                    (f=cpu(fJ), ϕ=cpu(ϕJ), g=g)
-                catch err
-                    rethrow(err)
-                    @warn "$sim $g_in_data $g_in_cov"
-                    nothing
+            (g_in_data,g_in_cov) => try
+                if MAPs == nothing
+                    fJ,ϕJ = MAP_joint(
+                        ds′,
+                        Nϕ       = :qe,
+                        nsteps   = 30,
+                        progress = false,
+                    )
+                else
+                    fJ, ϕJ = cu.(MAPs[sim][g_in_data,g_in_cov][1:2])
                 end
+                gAϕ = gradient(Aϕ -> lnP(0,fJ,ϕJ,(Aϕ=Aϕ,),ds′), ones(Float32,length(ℓedges)-1))[1]
+                (fJ=cpu(fJ), ϕJ=cpu(ϕJ), gAϕ)
+            catch err
+                rethrow(err)
+                @warn "$sim $g_in_data $g_in_cov"
+                nothing
+            end
 
         end...)
 
@@ -205,7 +209,7 @@ end
 
 
 
-function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)
+function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatch=16,overwrite=false)
     
     @unpack ϕs, κs, gs_ir, gs_radio, Ms_radio = load("data/sehgal_maps_h5/cutouts.jld2")
     @unpack (μKarcmin_gs_radio, μKarcmin_gs_ir) = get_foreground_whitenoise_level(;Ms_radio, gs_radio, gs_ir);
@@ -220,8 +224,8 @@ function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)
     )
 
     configs = collect(skipmissing(map(Iterators.product(surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale)
-        filename = datadir("MAPs", savename((;survey,freq,ℓmax_data,fluxcut,polfrac_scale), "jld2"))
-        if !isfile(filename)
+        filename = datadir("MAPs", savename((;survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch), "jld2"))
+        if overwrite || !isfile(filename)
             (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
         else
             missing
@@ -230,8 +234,8 @@ function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)
     
     map(configs) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
         MAPs = get_MAPs(;
-            Cℓ, Ms=Ms_radio[survey,freq,fluxcut], gs=gs_radio[freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, fluxcut, 
-            polfrac_scale, ℓedges, μKarcmin_g=μKarcmin_gs_radio[survey,freq,fluxcut], Nbatch=16
+            Cℓ, Ms=Ms_radio[survey,freq,fluxcut], gs=gs_radio[freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, 
+            polfrac_scale, ℓedges, μKarcmin_g=μKarcmin_gs_radio[survey,freq,fluxcut], Nbatch
         )
         save(filename, "MAPs", MAPs)
     end
