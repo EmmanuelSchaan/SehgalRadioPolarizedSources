@@ -135,7 +135,7 @@ end
 """
 Compute the joint MAP for some sims.
 """
-function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, ℓedges, μKarcmin_g, Nbatch=16, MAPs=nothing)
+function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, ℓedges, μKarcmin_g, Nbatch=16, MAPs=nothing, sims=sims)
         
     @unpack ds = load_sim_dataset(;
         Cℓ = Cℓ,
@@ -152,7 +152,7 @@ function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, 
     Cℓg = noiseCℓs(μKarcminT=polfrac_scale*μKarcmin_g/√2, beamFWHM=0, ℓknee=0)
     Cg = Cℓ_to_Cov(Flat(Nside=300, θpix=2), Float32, S2, Cℓg.EE, Cℓg.BB)
     
-    @showprogress pmap(1:8) do sim
+    @showprogress pmap(sims) do sim
 
         sim′ = mod(sim,maximum(sims))+1
 
@@ -163,10 +163,10 @@ function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, 
             (:uncorrfg, :fgcov, gs[sim′], Ms[sim′], ϕs[sim]),
             (:gaussfg,  :fgcov, nothing , 1,        ϕs[sim]),
 
-            (:nofg,     :nocov, nothing,  nothing,  ϕs[sim]),
-            (:corrfg,   :nocov, gs[sim] , Ms[sim],  ϕs[sim]),
-            (:uncorrfg, :nocov, gs[sim′], Ms[sim′], ϕs[sim]),
-            (:gaussfg,  :nocov, nothing,  1,        ϕs[sim]),
+            # (:nofg,     :nocov, nothing,  nothing,  ϕs[sim]),
+            # (:corrfg,   :nocov, gs[sim] , Ms[sim],  ϕs[sim]),
+            # (:uncorrfg, :nocov, gs[sim′], Ms[sim′], ϕs[sim]),
+            # (:gaussfg,  :nocov, nothing,  1,        ϕs[sim]),
             
         ]) do (g_in_data, g_in_cov, g, M, ϕ)
 
@@ -209,7 +209,7 @@ end
 
 
 
-function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatch=16,overwrite=false)
+function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatch=16,overwrite=false,sims=sims)
     
     @unpack ϕs, κs, gs_ir, gs_radio, Ms_radio = load("data/sehgal_maps_h5/cutouts.jld2")
     @unpack (μKarcmin_gs_radio, μKarcmin_gs_ir) = get_foreground_whitenoise_level(;Ms_radio, gs_radio, gs_ir);
@@ -235,7 +235,7 @@ function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatc
     map(configs) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
         MAPs = get_MAPs(;
             Cℓ, Ms=Ms_radio[survey,freq,fluxcut], gs=gs_radio[freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, 
-            polfrac_scale, ℓedges, μKarcmin_g=μKarcmin_gs_radio[survey,freq,fluxcut], Nbatch
+            polfrac_scale, ℓedges, μKarcmin_g=μKarcmin_gs_radio[survey,freq,fluxcut], Nbatch, sims
         )
         save(filename, "MAPs", MAPs)
     end
