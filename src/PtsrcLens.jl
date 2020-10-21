@@ -9,14 +9,26 @@ using ProgressMeter
 using HDF5
 using FileIO
 using DrWatson
+using Measurements: value, uncertainty, ±
 using CUDA
 using CMBLensing
 
-export load_hdf5_cutouts, get_foreground_whitenoise_level, get_MAPs, sims, fluxcuts, get_fiducial_Cℓ, main_MAP_grid
+export load_hdf5_cutouts, get_foreground_noise, get_foreground_whitenoise_σ, get_MAPs, sims, fluxcuts, 
+    get_fiducial_Cℓ, main_MAP_grid, noises
 
+    
 const sims = 1:40
 const fluxcuts = (2, 5, 10, Inf)
-
+const noises = Dict(
+    (:deep, 90)  => (μKarcminT=0.68/√2, beamFWHM=2.3, ℓknee=200, αknee=2),
+    (:wide, 90)  => (μKarcminT=2.9/√2,  beamFWHM=2.2, ℓknee=700, αknee=1.4),
+    (:deep, 148) => (μKarcminT=0.96/√2, beamFWHM=1.5, ℓknee=200, αknee=2),
+    (:wide, 148) => (μKarcminT=2.8/√2,  beamFWHM=1.4, ℓknee=700, αknee=1.4),
+)
+const fskys = Dict(
+    :deep => 0.03, 
+    :wide => 0.6
+)
 
 """
 Load the HDF5-converted cutouts (run make_h5output.jl to convert the
@@ -83,27 +95,34 @@ end
 """
 Fit the mean white-noise level for radio and IR sources in units of μKarcmin.
 """
-function get_foreground_whitenoise_level(;Ms_radio, gs_radio, gs_ir)
+function get_foreground_noise(;Ms_radio, gs_radio, gs_ir, ℓrange=5000:10000)
 
-    μKarcmin_gs_radio = sort(Dict(map(collect(Ms_radio)) do ((survey,freq,fluxcut), Ms)
-        (survey,freq,fluxcut) => if !(nothing in Ms)
-            mean(sims) do i
-                sqrt(mean(get_Cℓ(Ms[i] * gs_radio[freq][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
-            end
-        else
-            missing
+    fg_noise_radio = sort(Dict(map(collect(Ms_radio)) do ((survey,freq,fluxcut), Ms)
+        
+        fg_noise = mean(sims) do i
+            sqrt(mean(get_Cℓ(Ms[i] * gs_radio[freq][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
         end
+
+        fsky = fskys[survey]
+        Bℓ = beamCℓs(beamFWHM=noises[survey,freq].beamFWHM,ℓmax=last(ℓrange))[ℓrange]
+        Cℓfg = fg_noise^2
+        Cℓnoise = noises[survey,freq].μKarcminT^2
+
+        F = (fsky/2) * sum(@. (2ℓrange+1) * (Bℓ * Cℓfg)^2 / (Bℓ * Cℓfg + Cℓnoise)^2)
+        
+        (survey, freq, fluxcut) => fg_noise ± fg_noise * sqrt(inv(F))/2
+
     end))
 
-    μKarcmin_gs_ir₀ = mean(sims) do i
+    fg_noise_ir₀ = mean(sims) do i
         sqrt(mean(get_Cℓ(gs_ir[148][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
     end
-    μKarcmin_gs_ir = Dict(
-        (:deep,148,Inf) => μKarcmin_gs_ir₀,
-        (:wide,148,Inf) => μKarcmin_gs_ir₀
+    fg_noise_ir = Dict(
+        (:deep,148,Inf) => fg_noise_ir₀,
+        (:wide,148,Inf) => fg_noise_ir₀
     )
 
-    (;μKarcmin_gs_radio, μKarcmin_gs_ir)
+    (;fg_noise_radio, fg_noise_ir)
 
 end
 
@@ -135,8 +154,11 @@ end
 """
 Compute the joint MAP for some sims.
 """
-function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, ℓedges, μKarcmin_g, Nbatch=16, MAPs=nothing, sims=sims)
-        
+function get_MAPs(;
+    Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, ℓedges, fg_noise,
+    Nbatch=16, MAPs=nothing, sims=sims
+)
+
     @unpack ds = load_sim_dataset(;
         Cℓ = Cℓ,
         θpix = 2,
@@ -149,8 +171,9 @@ function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, 
     @unpack B = ds
     ds.Cϕ = Cℓ_to_Cov(ϕs[1], (Cℓ.total.ϕϕ, ℓedges, :Aϕ));
 
-    Cℓg = noiseCℓs(μKarcminT=polfrac_scale*μKarcmin_g/√2, beamFWHM=0, ℓknee=0)
+    Cℓg = noiseCℓs(μKarcminT=polfrac_scale*values(fg_noise)/√2, beamFWHM=0, ℓknee=0)
     Cg = Cℓ_to_Cov(Flat(Nside=300, θpix=2), Float32, S2, Cℓg.EE, Cℓg.BB)
+
     
     @showprogress pmap(sims) do sim
 
@@ -158,17 +181,13 @@ function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, 
 
         Dict(map([
 
-            (:nofg,     :fgcov, nothing,  nothing,  ϕs[sim]),
-            (:corrfg,   :fgcov, gs[sim] , Ms[sim],  ϕs[sim]),
-            (:uncorrfg, :fgcov, gs[sim′], Ms[sim′], ϕs[sim]),
-            (:gaussfg,  :fgcov, nothing , 1,        ϕs[sim]),
+            (:nofg,      :fgcov, nothing,  nothing,  ϕs[sim], polfrac_scale),
+            (:corrfg,    :fgcov, gs[sim] , Ms[sim],  ϕs[sim], polfrac_scale),
+            (:uncorrfg,  :fgcov, gs[sim′], Ms[sim′], ϕs[sim], polfrac_scale),
+            (:gaussfg,   :fgcov, nothing , 1,        ϕs[sim], polfrac_scale),
+            (:gaussfg2,  :fgcov, nothing , 1,        ϕs[sim], polfrac_scale * (1 + uncertainty(fg_noise)/fg_noise)),
 
-            # (:nofg,     :nocov, nothing,  nothing,  ϕs[sim]),
-            # (:corrfg,   :nocov, gs[sim] , Ms[sim],  ϕs[sim]),
-            # (:uncorrfg, :nocov, gs[sim′], Ms[sim′], ϕs[sim]),
-            # (:gaussfg,  :nocov, nothing,  1,        ϕs[sim]),
-            
-        ]) do (g_in_data, g_in_cov, g, M, ϕ)
+        ]) do (g_in_data, g_in_cov, g, M, ϕ, polfrac_scale)
 
             ds′ = resimulate(ds, ϕ=ϕ, seed=sim).ds
             if g_in_cov == :fgcov
@@ -176,13 +195,13 @@ function get_MAPs(;Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, 
             end
             if g_in_data in [:corrfg, :uncorrfg]
                 ds′.d += polfrac_scale*B*M*g
-            elseif g_in_data == :gaussfg
+            elseif g_in_data in [:gaussfg, :gaussfg2]
                 g = simulate(Cg,seed=sim)
                 ds′.d += polfrac_scale*B*M*g
             end
             ds′ = cu(ds′)
 
-            (g_in_data,g_in_cov) => try
+            (g_in_data, g_in_cov) => try
                 if MAPs == nothing
                     fJ,ϕJ = MAP_joint(
                         ds′,
@@ -212,16 +231,11 @@ end
 function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatch=16,overwrite=false,sims=sims)
     
     @unpack ϕs, κs, gs_ir, gs_radio, Ms_radio = load("data/sehgal_maps_h5/cutouts.jld2")
-    @unpack (μKarcmin_gs_radio, μKarcmin_gs_ir) = get_foreground_whitenoise_level(;Ms_radio, gs_radio, gs_ir);
+    @unpack (fg_noise_radio, fg_noise_ir) = get_foreground_fg_noise(;Ms_radio, gs_radio, gs_ir);
+    σAfgs_radio = get_foreground_whitenoise_σ(;fg_noise_radio, fg_noise_ir);
     Cℓ = get_fiducial_Cℓ(ϕs)
 
     ℓedges = [2:100:500; round.(Int, 10 .^ range(log10(502), log10(6000), length=10))]
-    noises = Dict(
-        (:deep, 90)  => (μKarcminT=0.68/√2, beamFWHM=2.3, ℓknee=200, αknee=2),
-        (:wide, 90)  => (μKarcminT=2.9/√2,  beamFWHM=2.2, ℓknee=700, αknee=1.4),
-        (:deep, 148) => (μKarcminT=0.96/√2, beamFWHM=1.5, ℓknee=200, αknee=2),
-        (:wide, 148) => (μKarcminT=2.8/√2,  beamFWHM=1.4, ℓknee=700, αknee=1.4),
-    )
 
     configs = collect(skipmissing(map(Iterators.product(surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale)
         filename = datadir("MAPs", savename((;survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch), "jld2"))
@@ -235,7 +249,7 @@ function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatc
     map(configs) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
         MAPs = get_MAPs(;
             Cℓ, Ms=Ms_radio[survey,freq,fluxcut], gs=gs_radio[freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, 
-            polfrac_scale, ℓedges, μKarcmin_g=μKarcmin_gs_radio[survey,freq,fluxcut], Nbatch, sims
+            polfrac_scale, ℓedges, fg_noise=fg_noise_radio[survey,freq,fluxcut], Nbatch, sims
         )
         save(filename, "MAPs", MAPs)
     end
