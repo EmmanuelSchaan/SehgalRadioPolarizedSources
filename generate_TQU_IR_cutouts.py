@@ -154,7 +154,7 @@ for latCenter in LatCenter:
          psMask = baseMap.pointSourceMaskMatchedFilterIsotropic(cmb.ftotalTT, fluxCut, fprof=None, dataFourier=cutTMapFourier, maskPatchRadius=maskPatchRadius, test=False)    
             
          # save the cutouts
-#          np.savetxt("./output/sehgal_maps/cutouts/ps_official_sehgal_T_patch"+str(nPatches)+".txt", cutSehgalTMap)
+#          np.savetxt("./output/sehgal_maps/cutouts/ir_official_sehgal_T_patch"+str(nPatches)+".txt", cutSehgalTMap)
          np.savetxt(pathOut + "ir_"+sourceCatalog+"_sehgal_T_patch"+str(nPatches)+".txt", cutTMap)
          np.savetxt(pathOut + "ir_"+sourceCatalog+"_sehgal_Q_patch"+str(nPatches)+".txt", cutQMap)
          np.savetxt(pathOut + "ir_"+sourceCatalog+"_sehgal_U_patch"+str(nPatches)+".txt", cutUMap)
