@@ -104,7 +104,7 @@ function get_foreground_noise(;Ms_radio, gs_radio, gs_ir, ℓrange=5000:10000)
         end
 
         fsky = fskys[survey]
-        Bℓ = beamCℓs(beamFWHM=noises[survey,freq].beamFWHM,ℓmax=last(ℓrange))[ℓrange]
+        Bℓ = beamCℓs(;noises[survey,freq].beamFWHM,ℓmax=last(ℓrange))[ℓrange]
         Cℓfg = fg_noise^2
         Cℓnoise = noises[survey,freq].μKarcminT^2
 
@@ -169,9 +169,10 @@ function get_MAPs(;
         noise_kwargs...
     )
     @unpack B = ds
+    @unpack T = fieldinfo(diag(B))
     ds.Cϕ = Cℓ_to_Cov(ϕs[1], (Cℓ.total.ϕϕ, ℓedges, :Aϕ));
 
-    Cℓg = noiseCℓs(μKarcminT=polfrac_scale*values(fg_noise)/√2, beamFWHM=0, ℓknee=0)
+    Cℓg = noiseCℓs(μKarcminT=polfrac_scale*value(fg_noise)/√2, beamFWHM=0, ℓknee=0)
     Cg = Cℓ_to_Cov(Flat(Nside=300, θpix=2), Float32, S2, Cℓg.EE, Cℓg.BB)
 
     
@@ -181,11 +182,11 @@ function get_MAPs(;
 
         Dict(map([
 
-            (:nofg,      :fgcov, nothing,  nothing,  ϕs[sim], polfrac_scale),
-            (:corrfg,    :fgcov, gs[sim] , Ms[sim],  ϕs[sim], polfrac_scale),
-            (:uncorrfg,  :fgcov, gs[sim′], Ms[sim′], ϕs[sim], polfrac_scale),
-            (:gaussfg,   :fgcov, nothing , 1,        ϕs[sim], polfrac_scale),
-            (:gaussfg2,  :fgcov, nothing , 1,        ϕs[sim], polfrac_scale * (1 + uncertainty(fg_noise)/fg_noise)),
+            (:nofg,      :fgcov, nothing,  nothing,  ϕs[sim], T(polfrac_scale)),
+            (:corrfg,    :fgcov, gs[sim] , Ms[sim],  ϕs[sim], T(polfrac_scale)),
+            (:uncorrfg,  :fgcov, gs[sim′], Ms[sim′], ϕs[sim], T(polfrac_scale)),
+            (:gaussfg,   :fgcov, nothing , 1,        ϕs[sim], T(polfrac_scale)),
+            (:gaussfg2,  :fgcov, nothing , 1,        ϕs[sim], T(polfrac_scale * (1 + uncertainty(fg_noise)/value(fg_noise)))),
 
         ]) do (g_in_data, g_in_cov, g, M, ϕ, polfrac_scale)
 
@@ -231,8 +232,7 @@ end
 function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatch=16,overwrite=false,sims=sims)
     
     @unpack ϕs, κs, gs_ir, gs_radio, Ms_radio = load("data/sehgal_maps_h5/cutouts.jld2")
-    @unpack (fg_noise_radio, fg_noise_ir) = get_foreground_fg_noise(;Ms_radio, gs_radio, gs_ir);
-    σAfgs_radio = get_foreground_whitenoise_σ(;fg_noise_radio, fg_noise_ir);
+    @unpack (fg_noise_radio, fg_noise_ir) = get_foreground_noise(;Ms_radio, gs_radio, gs_ir);
     Cℓ = get_fiducial_Cℓ(ϕs)
 
     ℓedges = [2:100:500; round.(Int, 10 .^ range(log10(502), log10(6000), length=10))]
