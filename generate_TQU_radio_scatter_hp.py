@@ -90,7 +90,10 @@ tMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
 
 
 # polarization fraction: 3% from Trombetti+18 (to be improved)
-alpha = 0.03
+#alpha = 0.03
+alpha = np.random.normal(loc=0., scale=0.03, size=len(ra))
+alpha = np.abs(alpha)
+
 # polarization angles:
 theta = np.random.uniform(low=0., high=np.pi, size=len(ra))
 
@@ -144,8 +147,8 @@ print "Saving healpix maps"
 
 #pathOut = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/output/sehgal_maps/radio_sources/"
 pathOut = "./output/sehgal_maps/radio_sources/"
-hp.write_map(pathOut + "t_radio_sehgal_"+nuStr+"ghz_muk.fits", tMap, overwrite=True)
-hp.write_map(pathOut + "q_radio_sehgal_"+nuStr+"ghz_muk.fits", qMap, overwrite=True)
-hp.write_map(pathOut + "u_radio_sehgal_"+nuStr+"ghz_muk.fits", uMap, overwrite=True)
+hp.write_map(pathOut + "t_radio_sehgal_"+nuStr+"ghz_muk_scatter.fits", tMap, overwrite=True)
+hp.write_map(pathOut + "q_radio_sehgal_"+nuStr+"ghz_muk_scatter.fits", qMap, overwrite=True)
+hp.write_map(pathOut + "u_radio_sehgal_"+nuStr+"ghz_muk_scatter.fits", uMap, overwrite=True)
 
 

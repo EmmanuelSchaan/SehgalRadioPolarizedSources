@@ -1,3 +1,4 @@
+#!/bin/bash
 # WARNING:
 # the python script called here will abort right away
 # if none of the sources in the catalog are below 100mJy at 148 GHz.
@@ -20,16 +21,16 @@
 #python generate_TQU_IR_hp.py "IRgal_S_1"
 #python generate_TQU_IR_hp.py "IRgal_S_2"
 #python generate_TQU_IR_hp.py "IRgal_S_3"
-python generate_TQU_IR_hp.py "IRgal_S_4"
-python generate_TQU_IR_hp.py "IRgal_S_5"
-python generate_TQU_IR_hp.py "IRgal_S_6"
-python generate_TQU_IR_hp.py "IRgal_S_7"
-python generate_TQU_IR_hp.py "IRgal_S_8"
-python generate_TQU_IR_hp.py "IRgal_S_9"
-python generate_TQU_IR_hp.py "IRgal_S_10"
-python generate_TQU_IR_hp.py "IRgal_S_11"
+#python generate_TQU_IR_hp.py "IRgal_S_4"
+#python generate_TQU_IR_hp.py "IRgal_S_5"
+#python generate_TQU_IR_hp.py "IRgal_S_6"
+#python generate_TQU_IR_hp.py "IRgal_S_7"
+#python generate_TQU_IR_hp.py "IRgal_S_8"
+#python generate_TQU_IR_hp.py "IRgal_S_9"
+#python generate_TQU_IR_hp.py "IRgal_S_10"
+#python generate_TQU_IR_hp.py "IRgal_S_11"
 ## BLAST very high flux population
-python generate_TQU_IR_hp.py "IRBlastPop"
+#python generate_TQU_IR_hp.py "IRBlastPop"
 
 
 # Then, extract the cutouts
@@ -46,4 +47,5 @@ python generate_TQU_IR_hp.py "IRBlastPop"
 #python generate_TQU_IR_cutouts.py "IRgal_S_11"
 # BLAST very high flux population
 #python generate_TQU_IR_cutouts.py "IRBlastPop"
+
 
