@@ -13,7 +13,7 @@ using Measurements: value, uncertainty, ±
 using CUDA
 using CMBLensing
 
-export load_hdf5_cutouts, get_foreground_noise, get_foreground_whitenoise_σ, get_MAPs, sims, fluxcuts, 
+export load_hdf5_cutouts, get_foreground_noise, get_MAPs, sims, fluxcuts, 
     get_fiducial_Cℓ, main_MAP_grid, noises
 
     
@@ -159,7 +159,14 @@ function get_MAPs(;
     Nbatch=16, MAPs=nothing, sims=sims
 )
 
-    @unpack ds = load_sim_dataset(;
+    pbar = Progress(5*length(sims), 1, "get_MAPs: ")
+    ProgressMeter.update!(pbar)
+    update_pbar = RemoteChannel(()->Channel{Bool}(), 1)
+    @async while take!(update_pbar)
+        next!(pbar)
+    end
+
+    @unpack ds, proj = load_sim_dataset(;
         Cℓ = Cℓ,
         θpix = 2,
         Nside = 300,
@@ -169,14 +176,14 @@ function get_MAPs(;
         noise_kwargs...
     )
     @unpack B = ds
-    @unpack T = fieldinfo(diag(B))
-    ds.Cϕ = Cℓ_to_Cov(ϕs[1], (Cℓ.total.ϕϕ, ℓedges, :Aϕ));
+    T = real(eltype(ds.d))
+    ds.Cϕ = Cℓ_to_Cov(:I, proj, (Cℓ.total.ϕϕ, ℓedges, :Aϕ))
 
     Cℓg = noiseCℓs(μKarcminT=polfrac_scale*value(fg_noise)/√2, beamFWHM=0, ℓknee=0)
-    Cg = Cℓ_to_Cov(Flat(Nside=300, θpix=2), Float32, S2, Cℓg.EE, Cℓg.BB)
+    Cg = Cℓ_to_Cov(:P, proj, Cℓg.EE, Cℓg.BB)
 
     
-    @showprogress pmap(sims) do sim
+    pmap(sims) do sim
 
         sim′ = mod(sim,maximum(sims))+1
 
@@ -209,16 +216,22 @@ function get_MAPs(;
                         Nϕ       = :qe,
                         nsteps   = 30,
                         progress = false,
+                        αtol     = 1e-6, 
+                        nburnin_update_hessian = Inf
                     )
                 else
                     fJ, ϕJ = cu.(MAPs[sim][g_in_data,g_in_cov][1:2])
                 end
                 gAϕ = gradient(Aϕ -> lnP(0,fJ,ϕJ,(Aϕ=Aϕ,),ds′), ones(Float32,length(ℓedges)-1))[1]
+                put!(update_pbar, true)
                 (fJ=cpu(fJ), ϕJ=cpu(ϕJ), gAϕ)
             catch err
-                rethrow(err)
-                @warn "$sim $g_in_data $g_in_cov"
-                nothing
+                if (err isa InterruptException) || (err isa RemoteException && err.captured isa CapturedException && err.captured.ex isa InterruptException)
+                    rethrow(err)
+                else
+                    @warn "$sim $g_in_data $g_in_cov" err
+                    nothing
+                end
             end
 
         end...)
@@ -235,7 +248,7 @@ function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatc
     @unpack (fg_noise_radio, fg_noise_ir) = get_foreground_noise(;Ms_radio, gs_radio, gs_ir);
     Cℓ = get_fiducial_Cℓ(ϕs)
 
-    ℓedges = [2:100:500; round.(Int, 10 .^ range(log10(502), log10(6000), length=10))]
+    ℓedges = [2; 100:50:500; round.(Int, 10 .^ range(log10(502), log10(5000), length=40))];
 
     configs = collect(skipmissing(map(Iterators.product(surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale)
         filename = datadir("MAPs", savename((;survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch), "jld2"))
@@ -247,6 +260,7 @@ function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatc
     end))
     
     map(configs) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
+        @show (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
         MAPs = get_MAPs(;
             Cℓ, Ms=Ms_radio[survey,freq,fluxcut], gs=gs_radio[freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, 
             polfrac_scale, ℓedges, fg_noise=fg_noise_radio[survey,freq,fluxcut], Nbatch, sims
