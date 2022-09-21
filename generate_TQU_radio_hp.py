@@ -47,13 +47,13 @@ fluxes_mJy['350'] = data[:,9]  # flux in mJy
 # select the requested frequency
 flux_mJy = fluxes_mJy[nuStr]
 
-print len(ra), "sources"
+print(len(ra), "sources")
 
 
 # Throw out the objects outside of the quadrant
 I = np.where((ra>=0.)*(ra<=90.)*(dec>=0.)*(dec<=90.))[0]
-print "keeping", len(I), "objects out of", len(ra)
-print "ie a fraction", 1.*len(I)/len(ra)
+print("keeping", len(I), "objects out of", len(ra))
+print("ie a fraction", 1.*len(I)/len(ra))
 
 ra = ra[I]
 dec = dec[I]
@@ -83,8 +83,8 @@ countMap, binEdges, binIndices = stats.binned_statistic(IPix, flux_mJy, statisti
 bins = np.arange(nPix+1)-0.5
 tMap, binEdges, binIndices = stats.binned_statistic(IPix, flux_mJy, statistic='sum', bins=bins)  # flux map [mJy]
 
-print "check that the map contains the flux from all the sources", np.sum(tMap), np.sum(flux_mJy)
-print "ratio is", np.sum(tMap) / np.sum(flux_mJy)
+print("check that the map contains the flux from all the sources", np.sum(tMap), np.sum(flux_mJy))
+print("ratio is", np.sum(tMap) / np.sum(flux_mJy))
 
 tMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
 
@@ -136,11 +136,11 @@ conversionOfficial['219'] = 1.318837e9
 conversionOfficial['277'] = 1.182877e9
 conversionOfficial['350'] = 8.247628e8
 # Check that it works:
-print "My conversion agrees with the Lambda website recommendation at "+nuStr+" GHz:", 1.e-26 / cmb.dBdT(nu, cmb.Tcmb), cmb.Tcmb / conversionOfficial[nuStr]
+print("My conversion agrees with the Lambda website recommendation at "+nuStr+" GHz:", 1.e-26 / cmb.dBdT(nu, cmb.Tcmb), cmb.Tcmb / conversionOfficial[nuStr])
 
 
 ####################################################################
-print "Saving healpix maps"
+print("Saving healpix maps")
 
 #pathOut = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/output/sehgal_maps/radio_sources/"
 pathOut = "./output/sehgal_maps/radio_sources/"

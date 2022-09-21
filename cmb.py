@@ -678,11 +678,11 @@ class CMB(object):
       fwhm = None for current experiment beam
       fwhm = any other value in rad
       '''
-      print "- temperature fluctuations due to CMB:", self.rmsT(self.flensedTT), "muK"
+      print("- temperature fluctuations due to CMB:", self.rmsT(self.flensedTT), "muK")
       # detector noise would diverge, because it is a constant divided by the beam**2
-      print "- temperature fluctuations due to CIB:", self.rmsT(self.fCIB), "muK"
-      print "- temperature fluctuations due to tSZ:", self.rmsT(self.ftSZ), "muK"
-      print "- temperature fluctuations due to kSZ:", self.rmsT(self.fkSZ), "muK"
+      print("- temperature fluctuations due to CIB:", self.rmsT(self.fCIB), "muK")
+      print("- temperature fluctuations due to tSZ:", self.rmsT(self.ftSZ), "muK")
+      print("- temperature fluctuations due to kSZ:", self.rmsT(self.fkSZ), "muK")
       
       
    def fsigmaMatchedFilter(self, fprofile=None, ftotalTT=None, lMin=None, lMax=None):

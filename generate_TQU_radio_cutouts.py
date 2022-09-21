@@ -21,13 +21,13 @@ aKnee = np.float(sys.argv[4])
 beamFwhm = np.float(sys.argv[5])
 noiseT = np.float(sys.argv[6])
 
-print "nu", nu
-print "nuStr", nuStr
-print "fluxCutmJy", fluxCutmJy
-print "lKnee", lKnee
-print "aKnee", aKnee
-print "beamFwhm", beamFwhm
-print "noiseT", noiseT
+print("nu", nu)
+print("nuStr", nuStr)
+print("fluxCutmJy", fluxCutmJy)
+print("lKnee", lKnee)
+print("aKnee", aKnee)
+print("beamFwhm", beamFwhm)
+print("noiseT", noiseT)
 
 
 ##nu = 90.e9  # [Hz]
@@ -59,7 +59,7 @@ print "noiseT", noiseT
 
 
 #####################################################################
-print "Reading healpix maps"
+print("Reading healpix maps")
 
 sehgalTMap = hp.read_map("./input/sehgal_maps/"+nuStr.zfill(3)+"_rad_pts_healpix.fits")
 
@@ -190,7 +190,7 @@ for latCenter in LatCenter:
          np.savetxt(pathOut + "ps_mask_"+nuStr+"ghz_"+str(np.int(round(fluxCutmJy)))+"mJy_beam"+str(round(beamFwhm,1))+"_noise"+str(round(noiseT,2))+"_lknee"+str(np.int(lKnee))+"_aknee"+str(round(aKnee,1))+"_T_patch"+str(nPatches)+".txt", psMask)
 
          
-print "Extracted "+str(nPatches)+" cutouts"
+print("Extracted "+str(nPatches)+" cutouts")
 
 
 
