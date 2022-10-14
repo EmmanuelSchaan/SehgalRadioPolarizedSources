@@ -1,20 +1,24 @@
 module PtsrcLens
 
-using Distributed
+using Adapt
+using CMBLensing
+using CUDA
+using DataStructures
 using DelimitedFiles
+using Distributed
+using DrWatson
+using FileIO
+using HDF5
+using Match
+using Measurements: value, uncertainty, ±
+using Memoization
+using ProgressMeter
 using Random
 using Setfield
 using Statistics
-using ProgressMeter
-using HDF5
-using FileIO
-using DrWatson
-using Measurements: value, uncertainty, ±
-using CUDA
-using CMBLensing
 
-export load_hdf5_cutouts, get_foreground_noise, get_MAPs, sims, fluxcuts, 
-    get_fiducial_Cℓ, main_MAP_grid, noises
+export load_hdf5_cutouts, load_jld2_cutouts, get_foreground_noise, get_MAPs, sims, fluxcuts, 
+    get_fiducial_Cℓ, main_MAP_grid, noises, FgDataContrib, load_ptsrclens_dataset
 
     
 const sims = 1:40
@@ -29,12 +33,13 @@ const fskys = Dict(
     :deep => 0.03, 
     :wide => 0.6
 )
-
+const DefaultRNG = Xoshiro
+  
 """
 Load the HDF5-converted cutouts (run make_h5output.jl to convert the
 original text files to HDF5)
 """
-function load_hdf5_cutouts()
+function load_hdf5_cutouts(;freqs_radio=[90,148])
 
     κs = @showprogress map(sims) do i
         ud_grade(FlatMap(h5read("data/sehgal_maps_h5/radio_sources/cutouts/kappa_sehgal_patch$i.h5","map"), θpix=1//2), 2)
@@ -44,7 +49,7 @@ function load_hdf5_cutouts()
         -2*(∇²\κ)
     end
 
-    gs_radio = Dict(map([90,148]) do freq
+    gs_radio = Dict(map(freqs_radio) do freq
         freq => @showprogress map(sims) do i 
             ud_grade(
                 FlatQUMap((h5read("data/sehgal_maps_h5/radio_sources/cutouts/ps_sehgal_$(freq)ghz_$(pol)_patch$i.h5", "map") for pol in "QU")..., θpix=1//2), 
@@ -87,42 +92,54 @@ function load_hdf5_cutouts()
         end
     end)
 
-    (;ϕs, κs, gs_ir, gs_radio, Ms_radio)
+    gs = Dict(:radio => gs_radio, :ir => gs_ir)
+    Ms = Dict(:radio => Ms_radio, :ir => DefaultDict(DefaultDict(ones(length(ϕs)))));
+
+    (;ϕs, κs, gs, Ms)
 
 end
+
+"""
+Load the JLD2-converted cutouts (output from load_hdf5_cutouts)
+"""
+@memoize load_jld2_cutouts(filename="data/sehgal_maps_h5/cutouts.jld2") = load(filename) 
 
 
 """
 Fit the mean white-noise level for radio and IR sources in units of μKarcmin.
 """
-function get_foreground_noise(;Ms_radio, gs_radio, gs_ir, ℓrange=5000:10000)
+@memoize function get_foreground_noise(;Ms, gs, ℓrange=5000:10000)
 
-    fg_noise_radio = sort(Dict(map(collect(Ms_radio)) do ((survey,freq,fluxcut), Ms)
+    fg_noise_radio = sort(Dict(map(collect(Ms[:radio])) do ((survey,freq,fluxcut), Ms)
         
-        fg_noise = mean(sims) do i
-            sqrt(mean(get_Cℓ(Ms[i] * gs_radio[freq][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
+        (survey, freq, fluxcut) => if haskey(gs[:radio], freq)
+
+            fg_noise = mean(sims) do i
+                sqrt(mean(get_Cℓ(Ms[i] * gs[:radio][freq][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
+            end
+
+            fsky = fskys[survey]
+            Bℓ = beamCℓs(;noises[survey,freq].beamFWHM,ℓmax=last(ℓrange))[ℓrange]
+            Cℓfg = fg_noise^2
+            Cℓnoise = noises[survey,freq].μKarcminT^2
+
+            F = (fsky/2) * sum(@. (2ℓrange+1) * (Bℓ * Cℓfg)^2 / (Bℓ * Cℓfg + Cℓnoise)^2)
+            
+            fg_noise ± fg_noise * sqrt(inv(F))/2
+
         end
-
-        fsky = fskys[survey]
-        Bℓ = beamCℓs(;noises[survey,freq].beamFWHM,ℓmax=last(ℓrange))[ℓrange]
-        Cℓfg = fg_noise^2
-        Cℓnoise = noises[survey,freq].μKarcminT^2
-
-        F = (fsky/2) * sum(@. (2ℓrange+1) * (Bℓ * Cℓfg)^2 / (Bℓ * Cℓfg + Cℓnoise)^2)
-        
-        (survey, freq, fluxcut) => fg_noise ± fg_noise * sqrt(inv(F))/2
 
     end))
 
     fg_noise_ir₀ = mean(sims) do i
-        sqrt(mean(get_Cℓ(gs_ir[148][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
+        sqrt(mean(get_Cℓ(gs[:ir][148][i], which=:QQ)[1000:2000]) / deg2rad(1/60)^2)
     end
     fg_noise_ir = Dict(
         (:deep,148,Inf) => fg_noise_ir₀,
         (:wide,148,Inf) => fg_noise_ir₀
     )
 
-    (;fg_noise_radio, fg_noise_ir)
+    Dict(:radio => fg_noise_radio, :ir => fg_noise_ir)
 
 end
 
@@ -132,7 +149,7 @@ Load fiducial Cℓs. For Cℓϕϕ, uses CAMB result up to ℓ=6000 and beyond
 that uses the mean of the ϕ sims themselves (which have some
 simulation-specific extra non-linear power).
 """
-function get_fiducial_Cℓ(ϕs)
+@memoize function get_fiducial_Cℓ(ϕs)
 
     Cℓ = camb(r=0.001, ωb=0.02268, ωc=0.1081, nₛ=0.961, H0=72.4, θs=nothing, logA=log(2.41*10), k_pivot=0.05, ℓmax=10000)
 
@@ -166,7 +183,7 @@ function get_MAPs(;
         next!(pbar)
     end
 
-    @unpack ds, proj = load_sim_dataset(;
+    @unpack ds, proj = load_sim(;
         Cℓ = Cℓ,
         θpix = 2,
         Nside = 300,
@@ -189,22 +206,25 @@ function get_MAPs(;
 
         Dict(map([
 
-            (:nofg,      :fgcov, nothing,  nothing,  ϕs[sim], T(polfrac_scale)),
-            (:corrfg,    :fgcov, gs[sim] , Ms[sim],  ϕs[sim], T(polfrac_scale)),
-            (:uncorrfg,  :fgcov, gs[sim′], Ms[sim′], ϕs[sim], T(polfrac_scale)),
-            (:gaussfg,   :fgcov, nothing , 1,        ϕs[sim], T(polfrac_scale)),
-            (:gaussfg2,  :fgcov, nothing , 1,        ϕs[sim], T(polfrac_scale * (1 + uncertainty(fg_noise)/value(fg_noise)))),
+            (:nofg,      :nofgcov,  nothing,  nothing,  ϕs[sim], T(polfrac_scale)),
+            (:nofg,      :fgcov,    nothing,  nothing,  ϕs[sim], T(polfrac_scale)),
+            (:corrfg,    :fgcov,    gs[sim] , Ms[sim],  ϕs[sim], T(polfrac_scale)),
+            (:uncorrfg,  :fgcov,    gs[sim′], Ms[sim′], ϕs[sim], T(polfrac_scale)),
+            (:corrfg,    :nofgcov,  gs[sim] , Ms[sim],  ϕs[sim], T(polfrac_scale)),
+            (:gaussfg,   :fgcov,    nothing , 1,        ϕs[sim], T(polfrac_scale)),
+            (:gaussfg2,  :fgcov,    nothing , 1,        ϕs[sim], T(polfrac_scale * (1 + uncertainty(fg_noise)/value(fg_noise)))),
 
         ]) do (g_in_data, g_in_cov, g, M, ϕ, polfrac_scale)
 
-            ds′ = resimulate(ds, ϕ=ϕ, seed=sim).ds
+            ds′ = copy(ds)
+            ds′.d = simulate(DefaultRNG(sim), ds, ϕ=ϕ).d
             if g_in_cov == :fgcov
                 ds′.Cn += polfrac_scale^2*B*Cg*B'
             end
             if g_in_data in [:corrfg, :uncorrfg]
                 ds′.d += polfrac_scale*B*M*g
             elseif g_in_data in [:gaussfg, :gaussfg2]
-                g = simulate(Cg,seed=sim)
+                g = simulate(DefaultRNG(sim), Cg)
                 ds′.d += polfrac_scale*B*M*g
             end
             ds′ = cu(ds′)
@@ -213,7 +233,6 @@ function get_MAPs(;
                 if MAPs == nothing
                     fJ,ϕJ = MAP_joint(
                         ds′,
-                        Nϕ       = :qe,
                         nsteps   = 30,
                         progress = false,
                         αtol     = 1e-6, 
@@ -242,33 +261,97 @@ end
 
 
 
-function main_MAP_grid(;surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales,Nbatch=16,overwrite=false,sims=sims)
+function main_MAP_grid(;source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, Nbatch=16, overwrite=false, sims=sims)
     
-    @unpack ϕs, κs, gs_ir, gs_radio, Ms_radio = load("data/sehgal_maps_h5/cutouts.jld2")
-    @unpack (fg_noise_radio, fg_noise_ir) = get_foreground_noise(;Ms_radio, gs_radio, gs_ir);
+    @show (source, survey, freq, ℓmax_data, fluxcut, polfrac_scale)
+
+    @unpack ϕs, κs, gs, Ms = load("data/sehgal_maps_h5/cutouts.jld2")
+    fg_noise = get_foreground_noise(;Ms, gs);
     Cℓ = get_fiducial_Cℓ(ϕs)
 
     ℓedges = [2; 100:50:500; round.(Int, 10 .^ range(log10(502), log10(5000), length=40))];
 
-    configs = collect(skipmissing(map(Iterators.product(surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale)
-        filename = datadir("MAPs", savename((;survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch), "jld2"))
-        if overwrite || !isfile(filename)
-            (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
-        else
-            missing
-        end
-    end))
-    
-    map(configs) do (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
-        @show (survey,freq,ℓmax_data,fluxcut,polfrac_scale,filename)
-        MAPs = get_MAPs(;
-            Cℓ, Ms=Ms_radio[survey,freq,fluxcut], gs=gs_radio[freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, 
-            polfrac_scale, ℓedges, fg_noise=fg_noise_radio[survey,freq,fluxcut], Nbatch, sims
-        )
-        save(filename, "MAPs", MAPs)
-    end
+    MAPs = get_MAPs(;
+        Cℓ, Ms=Ms[source][survey,freq,fluxcut], gs=gs[source][freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, 
+        polfrac_scale, ℓedges, fg_noise=fg_noise[source][survey,freq,fluxcut], Nbatch, sims
+    )
+
+    filename = datadir("MAPs", savename((;source,survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch), "jld2"))
+    @time save(filename, "MAPs", MAPs)
 
 end
+
+
+
+@enum FgDataContrib CUTOUT_CORRELATED CUTOUT_UNCORRELATED GAUSSIAN GAUSSIAN_OFF_BY_SIGMA
+
+function load_ptsrclens_dataset(;
+    source,
+    survey,
+    freq,
+    ℓmax_data,
+    fluxcut,
+    polfrac_scale,
+    sim,
+    fg_data_contrib :: Union{Nothing,FgDataContrib},
+    fg_cov_modeled :: Bool,
+    Nbatch = 16,
+    ℓedges_ϕ = [2; 100:50:500; round.(Int, 10 .^ range(log10(502), log10(5000), length=40))],
+    ℓedges_E = 500:100:5000,
+    T = Float32,
+    storage = CUDA.functional() ? CuArray : Array,
+)
+
+    @unpack ϕs, κs, gs, Ms = load_jld2_cutouts()
+    Cℓ = get_fiducial_Cℓ(ϕs)
+    fg_noises = get_foreground_noise(;Ms, gs)
+
+    noise_kwargs = noises[survey,freq]
+    fg_noise = fg_noises[source][survey,freq,fluxcut]
+
+    @unpack ds, proj = load_sim(;
+        Cℓ = Cℓ,
+        θpix = 2,
+        Nside = 300,
+        pol = :P,
+        bandpass_mask = LowPass(ℓmax_data),
+        Nbatch,
+        T,
+        noise_kwargs...
+    )
+    @unpack B,M = ds
+    T = real(eltype(ds.d))
+    ds.Cϕ = Cℓ_to_Cov(:I, proj, (Cℓ.total.ϕϕ, ℓedges_ϕ, :Aϕ))
+
+    Cℓg = noiseCℓs(μKarcminT=polfrac_scale*value(fg_noise)/√2, beamFWHM=0, ℓknee=0)
+    Cg = Cℓ_to_Cov(:P, proj, Cℓg.EE, Cℓg.BB)
+
+    ϕ = ϕs[sim]
+    sim′ = mod(sim,maximum(sims))+1
+    g = @match string(fg_data_contrib) begin
+        "CUTOUT_CORRELATED"     => gs[source][freq][sim]
+        "CUTOUT_UNCORRELATED"   => gs[source][freq][sim′]
+        "GAUSSIAN"              => simulate(DefaultRNG(sim),Cg)
+        "GAUSSIAN_OFF_BY_SIGMA" => simulate(DefaultRNG(sim),Cg) * (1 + uncertainty(fg_noise)/value(fg_noise))
+    end
+    Mg = @match string(fg_data_contrib) begin
+        "CUTOUT_CORRELATED"   => Ms[source][survey,freq,fluxcut][sim]
+        "CUTOUT_UNCORRELATED" => Ms[source][survey,freq,fluxcut][sim′]
+        _                     => 1
+    end
+
+    ds.d = simulate(DefaultRNG(sim), ds, ϕ=ϕ).d
+    if g != nothing 
+        ds.d += polfrac_scale*M*B*Mg*g
+    end
+    if fg_cov_modeled
+        ds.Cn += polfrac_scale^2*M*B*Cg*B'*M'
+    end
+
+    adapt(storage, (; ds, ϕ, g, Mg))
+
+end
+
 
 
 end

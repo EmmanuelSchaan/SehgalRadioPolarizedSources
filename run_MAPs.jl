@@ -1,27 +1,22 @@
-#!/usr/bin/env sh
-#SBATCH -G 4
-#SBATCH -n 5
-#SBATCH -t 04:00:00
-#SBATCH -N 1
-#SBATCH -c 2
-#SBATCH -C gpu
-#SBATCH -A m1759
-#SBATCH -o log/%x-%j.out
-#=
-srun julia $(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}')
-exit
-# =#
 
+using DrWatson
 
-using CUDA, CMBLensing, PtsrcLens, MPIClusterManagers
-CMBLensing.init_MPI_workers()
-PtsrcLens.main_MAP_grid(;
-    # surveys = [:deep, :wide],
-    surveys = [:wide],
-    freqs = [90, 148],
-    ℓmax_datas = [3000, 5000],
-    fluxcuts = [2, 5, 10],
-    polfrac_scales = [1],
-    Nbatch = 16,
-    overwrite = false
-)
+sources = [:radio]
+surveys = [:deep, :wide]
+freqs = [90]
+ℓmax_datas = [5000]
+fluxcuts = [5]
+polfrac_scales = [1]
+Nbatch = 16
+overwrite = false
+
+configs = collect(skipmissing(map(Iterators.product(sources,surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (source,survey,freq,ℓmax_data,fluxcut,polfrac_scale)
+    args = (;source,survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch)
+    filename = datadir("MAPs", savename(args, "jld2"))
+    cmd = "sbatch -C gpu -t 04:00:00 -c 2 -G 4 -n 5 -N 1 -A mp107 -o log/%j.out --wrap=\"srun julia -e 'using CUDA, CMBLensing, PtsrcLens, MPIClusterManagers; CMBLensing.init_MPI_workers(); PtsrcLens.main_MAP_grid(;$(args)...)'\""
+    if overwrite || !isfile(filename)
+        println(cmd)
+    else
+        missing
+    end
+end))
