@@ -7,9 +7,6 @@
 #SBATCH -A mp107
 #SBATCH -o log/%x-%j.out
 #=
-hostname
-module list
-nvidia-smi
 srun -n 8 julia $(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}') "$ARGS"
 exit
 # =#
@@ -44,7 +41,6 @@ else
     using CUDA, CMBLensing, PtsrcLens, MPIClusterManagers
     CUDA.allowscalar(false)
     CMBLensing.init_MPI_workers()
-    CUDA.versioninfo()
     PtsrcLens.main_MAP_grid(;eval(Meta.parse(ARGS[1]))...)
 
 end
