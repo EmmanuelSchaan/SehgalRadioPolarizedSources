@@ -93,7 +93,7 @@ function load_hdf5_cutouts(;freqs_radio=[90,148])
     end)
 
     gs = Dict(:radio => gs_radio, :ir => gs_ir)
-    Ms = Dict(:radio => Ms_radio, :ir => DefaultDict(DefaultDict(ones(length(ϕs)))));
+    Ms = Dict(:radio => Ms_radio, :ir => DefaultDict(DefaultDict(1)));
 
     (;ϕs, κs, gs, Ms)
 
@@ -199,8 +199,9 @@ function get_MAPs(;
     Cℓg = noiseCℓs(μKarcminT=polfrac_scale*value(fg_noise)/√2, beamFWHM=0, ℓknee=0)
     Cg = Cℓ_to_Cov(:P, proj, Cℓg.EE, Cℓg.BB)
 
+    pool = CachingPool(procs())
     
-    pmap(sims) do sim
+    pmap(pool, sims) do sim
 
         sim′ = mod(sim,maximum(sims))+1
 

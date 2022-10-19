@@ -1,22 +1,50 @@
+#!/usr/bin/env bash
+#SBATCH --nodes 1
+#SBATCH --ntasks-per-node 8
+#SBATCH --gpus-per-task 1
+#SBATCH -t 02:00:00
+#SBATCH -C gpu
+#SBATCH -A mp107
+#SBATCH -o log/%x-%j.out
+#=
+hostname
+module list
+nvidia-smi
+srun -n 8 julia $(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}') "$ARGS"
+exit
+# =#
 
-using DrWatson
 
-sources = [:radio]
-surveys = [:deep, :wide]
-freqs = [90]
-ℓmax_datas = [5000]
-fluxcuts = [5]
-polfrac_scales = [1]
-Nbatch = 16
-overwrite = false
+if length(ARGS) == 0
 
-configs = collect(skipmissing(map(Iterators.product(sources,surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (source,survey,freq,ℓmax_data,fluxcut,polfrac_scale)
-    args = (;source,survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch)
-    filename = datadir("MAPs", savename(args, "jld2"))
-    cmd = "sbatch -C gpu -t 04:00:00 -c 2 -G 4 -n 5 -N 1 -A mp107 -o log/%j.out --wrap=\"srun julia -e 'using CUDA, CMBLensing, PtsrcLens, MPIClusterManagers; CMBLensing.init_MPI_workers(); PtsrcLens.main_MAP_grid(;$(args)...)'\""
-    if overwrite || !isfile(filename)
-        println(cmd)
-    else
-        missing
-    end
-end))
+    using DrWatson
+
+    sources = [:ir]
+    surveys = [:deep, :wide]
+    freqs = [148]
+    ℓmax_datas = [3000, 4000, 5000]
+    fluxcuts = [Inf]
+    polfrac_scales = [1]
+    Nbatch = 16
+    overwrite = false
+
+    configs = collect(skipmissing(map(Iterators.product(sources,surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (source,survey,freq,ℓmax_data,fluxcut,polfrac_scale)
+        args = (;source,survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch)
+        filename = datadir("MAPs", savename(args, "jld2"))
+        cmd = "ARGS=\"$(args)\" sbatch $(@__FILE__)"
+        if overwrite || !isfile(filename)
+            println(cmd)
+        else
+            missing
+        end
+    end))
+
+else
+
+    using CUDA, CMBLensing, PtsrcLens, MPIClusterManagers
+    CUDA.allowscalar(false)
+    CMBLensing.init_MPI_workers()
+    CUDA.versioninfo()
+    PtsrcLens.main_MAP_grid(;eval(Meta.parse(ARGS[1]))...)
+
+end
