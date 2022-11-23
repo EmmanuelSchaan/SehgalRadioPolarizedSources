@@ -176,80 +176,72 @@ function get_MAPs(;
     Nbatch=16, MAPs=nothing, sims=sims
 )
 
-    pbar = Progress(5*length(sims), 1, "get_MAPs: ")
+end
+
+
+
+function main_MAP_grid(;source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, T=Float64, Nbatch=16, overwrite=false, sims=sims)
+    
+    @show (source, survey, freq, ℓmax_data, fluxcut, polfrac_scale)
+
+    ℓedges = [2; 100:50:500; round.(Int, 10 .^ range(log10(502), log10(5000), length=40))];
+
+
+    pbar = Progress(7*length(sims), 1, "get_MAPs: ")
     ProgressMeter.update!(pbar)
     update_pbar = RemoteChannel(()->Channel{Bool}(), 1)
     @async while take!(update_pbar)
         next!(pbar)
     end
 
-    @unpack ds, proj = load_sim(;
-        Cℓ = Cℓ,
-        θpix = 2,
-        Nside = 300,
-        pol = :P,
-        bandpass_mask = LowPass(ℓmax_data),
-        Nbatch = Nbatch,
-        noise_kwargs...
-    )
-    @unpack B = ds
-    T = real(eltype(ds.d))
-    ds.Cϕ = Cℓ_to_Cov(:I, proj, (Cℓ.total.ϕϕ, ℓedges, :Aϕ))
-
-    Cℓg = noiseCℓs(μKarcminT=polfrac_scale*value(fg_noise)/√2, beamFWHM=0, ℓknee=0)
-    Cg = Cℓ_to_Cov(:P, proj, Cℓg.EE, Cℓg.BB)
-
     pool = CachingPool(procs())
     
-    pmap(pool, sims) do sim
+    MAPs = pmap(pool, sims) do sim
 
         sim′ = mod(sim,maximum(sims))+1
 
         Dict(map([
 
-            (:nofg,      :nofgcov,  nothing,  nothing,  ϕs[sim], T(polfrac_scale)),
-            (:nofg,      :fgcov,    nothing,  nothing,  ϕs[sim], T(polfrac_scale)),
-            (:corrfg,    :fgcov,    gs[sim] , Ms[sim],  ϕs[sim], T(polfrac_scale)),
-            (:uncorrfg,  :fgcov,    gs[sim′], Ms[sim′], ϕs[sim], T(polfrac_scale)),
-            (:corrfg,    :nofgcov,  gs[sim] , Ms[sim],  ϕs[sim], T(polfrac_scale)),
-            (:gaussfg,   :fgcov,    nothing , 1,        ϕs[sim], T(polfrac_scale)),
-            (:gaussfg2,  :fgcov,    nothing , 1,        ϕs[sim], T(polfrac_scale * (1 + uncertainty(fg_noise)/value(fg_noise)))),
+            (FG_FREE,               false),
+            (FG_FREE,               true),
+            (CUTOUT_CORRELATED,     true),
+            (CUTOUT_UNCORRELATED,   true),
+            (CUTOUT_CORRELATED,     false),
+            (GAUSSIAN,              true),
+            (GAUSSIAN_OFF_BY_SIGMA, true)
 
-        ]) do (g_in_data, g_in_cov, g, M, ϕ, polfrac_scale)
+        ]) do (fg_data_contrib, fg_cov_modeled)
 
-            ds′ = copy(ds)
-            ds′.d = simulate(DefaultRNG(sim), ds, ϕ=ϕ).d
-            if g_in_cov == :fgcov
-                ds′.Cn += polfrac_scale^2*B*Cg*B'
-            end
-            if g_in_data in [:corrfg, :uncorrfg]
-                ds′.d += polfrac_scale*B*M*g
-            elseif g_in_data in [:gaussfg, :gaussfg2]
-                g = simulate(DefaultRNG(sim), Cg)
-                ds′.d += polfrac_scale*B*M*g
-            end
-            ds′ = cu(ds′)
+            @unpack ds, ϕ, g, Mg = load_ptsrclens_dataset(;
+                sim, T, source, survey, freq, ℓmax_data, fluxcut, 
+                polfrac_scale, fg_data_contrib, fg_cov_modeled
+            )
 
-            (g_in_data, g_in_cov) => try
-                if MAPs == nothing
-                    fJ,ϕJ = MAP_joint(
-                        ds′,
-                        nsteps   = 30,
-                        progress = false,
-                        αtol     = 1e-6, 
-                        nburnin_update_hessian = Inf
-                    )
-                else
-                    fJ, ϕJ = cu.(MAPs[sim][g_in_data,g_in_cov][1:2])
+            (string(fg_data_contrib), fg_cov_modeled) => try
+
+                (fJ, ϕJ, history) = MAP_joint(
+                    ds,
+                    nsteps   = 60,
+                    progress = false,
+                    αtol     = 1e-6, 
+                    nburnin_update_hessian = Inf,
+                    history_keys = (:f, :ϕ)
+                )
+
+                gAϕ = map(history) do h
+                    (;f, ϕ) = h
+                    gAϕ = Base.@invokelatest(gradient(Aϕ -> lnP(0,f,ϕ,(;Aϕ),ds), ones(Float32,length(ℓedges)-1)))[1]
+                    mean(reduce(hcat, unbatch.(gAϕ)), dims=1)[:]
                 end
-                gAϕ = gradient(Aϕ -> lnP(0,fJ,ϕJ,(Aϕ=Aϕ,),ds′), ones(Float32,length(ℓedges)-1))[1]
+
                 put!(update_pbar, true)
                 (fJ=cpu(fJ), ϕJ=cpu(ϕJ), gAϕ)
+                
             catch err
                 if (err isa InterruptException) || (err isa RemoteException && err.captured isa CapturedException && err.captured.ex isa InterruptException)
                     rethrow(err)
                 else
-                    @warn "$sim $g_in_data $g_in_cov" err
+                    @warn "$sim $fg_data_contrib $fg_cov_modeled" err
                     nothing
                 end
             end
@@ -258,33 +250,15 @@ function get_MAPs(;
 
     end
     
-end
-
-
-
-function main_MAP_grid(;source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, Nbatch=16, overwrite=false, sims=sims)
-    
-    @show (source, survey, freq, ℓmax_data, fluxcut, polfrac_scale)
-
-    @unpack ϕs, κs, gs, Ms = load("data/sehgal_maps_h5/cutouts.jld2")
-    fg_noise = get_foreground_noise(;Ms, gs);
-    Cℓ = get_fiducial_Cℓ(ϕs)
-
-    ℓedges = [2; 100:50:500; round.(Int, 10 .^ range(log10(502), log10(5000), length=40))];
-
-    MAPs = get_MAPs(;
-        Cℓ, Ms=Ms[source][survey,freq,fluxcut], gs=gs[source][freq], ϕs, noise_kwargs=noises[survey,freq], ℓmax_data, 
-        polfrac_scale, ℓedges, fg_noise=fg_noise[source][survey,freq,fluxcut], Nbatch, sims
-    )
-
     filename = datadir("MAPs", savename((;source,survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch), "jld2"))
+
     @time save(filename, "MAPs", MAPs)
 
 end
 
 
 
-@enum FgDataContrib CUTOUT_CORRELATED CUTOUT_UNCORRELATED GAUSSIAN GAUSSIAN_OFF_BY_SIGMA
+@enum FgDataContrib FG_FREE CUTOUT_CORRELATED CUTOUT_UNCORRELATED GAUSSIAN GAUSSIAN_OFF_BY_SIGMA
 
 function load_ptsrclens_dataset(;
     source,
@@ -294,7 +268,7 @@ function load_ptsrclens_dataset(;
     fluxcut,
     polfrac_scale,
     sim,
-    fg_data_contrib :: Union{Nothing,FgDataContrib},
+    fg_data_contrib :: FgDataContrib,
     fg_cov_modeled :: Bool,
     Nbatch = 16,
     ℓedges_ϕ = [2; 100:50:500; round.(Int, 10 .^ range(log10(502), log10(5000), length=40))],
@@ -327,13 +301,16 @@ function load_ptsrclens_dataset(;
     Cℓg = noiseCℓs(μKarcminT=polfrac_scale*value(fg_noise)/√2, beamFWHM=0, ℓknee=0)
     Cg = Cℓ_to_Cov(:P, proj, Cℓg.EE, Cℓg.BB)
 
+    rng = DefaultRNG(sim)
     ϕ = ϕs[sim]
+    ds.d = simulate(rng, ds, ϕ=ϕ).d
     sim′ = mod(sim,maximum(sims))+1
+
     g = @match string(fg_data_contrib) begin
         "CUTOUT_CORRELATED"     => gs[source][freq][sim]
         "CUTOUT_UNCORRELATED"   => gs[source][freq][sim′]
-        "GAUSSIAN"              => simulate(DefaultRNG(sim),Cg)
-        "GAUSSIAN_OFF_BY_SIGMA" => simulate(DefaultRNG(sim),Cg) * (1 + uncertainty(fg_noise)/value(fg_noise))
+        "GAUSSIAN"              => simulate(rng,Cg)
+        "GAUSSIAN_OFF_BY_SIGMA" => simulate(rng,Cg) * (1 + uncertainty(fg_noise)/value(fg_noise))
     end
     Mg = @match string(fg_data_contrib) begin
         "CUTOUT_CORRELATED"   => Ms[source][survey,freq,fluxcut][sim]
@@ -341,7 +318,6 @@ function load_ptsrclens_dataset(;
         _                     => 1
     end
 
-    ds.d = simulate(DefaultRNG(sim), ds, ϕ=ϕ).d
     if g != nothing 
         ds.d += polfrac_scale*M*B*Mg*g
     end
