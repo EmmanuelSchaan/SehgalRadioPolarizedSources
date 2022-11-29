@@ -430,18 +430,18 @@ class CMB(object):
       data[:,0] = self.Nu.copy()
 
       # Intensity freq dpdces
-      data[:,1] = np.array(map(self.cmbMonopoleFreqDpdceInt, self.Nu))
-      data[:,2] = np.array(map(self.cmbFluctuationsFreqDpdceInt, self.Nu))
-      data[:,3] = np.array(map(self.kszFreqDpdceInt, self.Nu))
-      data[:,4] = np.array(map(self.tszFreqDpdceInt, self.Nu))
-      data[:,5] = np.array(map(self.cibPoissonFreqDpdceInt, self.Nu))
-      data[:,6] = np.array(map(self.cibClusteredFreqDpdceInt, self.Nu))
-      data[:,7] = np.array(map(self.radioPoissonFreqDpdceInt, self.Nu))
-      data[:,8] = np.array(map(self.galacticDustFreqDpdceInt, self.Nu))
+      data[:,1] = np.array(list(map(self.cmbMonopoleFreqDpdceInt, self.Nu)))
+      data[:,2] = np.array(list(map(self.cmbFluctuationsFreqDpdceInt, self.Nu)))
+      data[:,3] = np.array(list(map(self.kszFreqDpdceInt, self.Nu)))
+      data[:,4] = np.array(list(map(self.tszFreqDpdceInt, self.Nu)))
+      data[:,5] = np.array(list(map(self.cibPoissonFreqDpdceInt, self.Nu)))
+      data[:,6] = np.array(list(map(self.cibClusteredFreqDpdceInt, self.Nu)))
+      data[:,7] = np.array(list(map(self.radioPoissonFreqDpdceInt, self.Nu)))
+      data[:,8] = np.array(list(map(self.galacticDustFreqDpdceInt, self.Nu)))
 
       # Thermo temperature freq dpdces
       f = lambda nu: self.convertIntSITo(nu, kind="tempKcmb")
-      intToTemp = np.array(map(f, self.Nu))
+      intToTemp = np.array(list(map(f, self.Nu)))
       #
       data[:,9] = data[:,1] * intToTemp
       data[:,10] = data[:,2] * intToTemp
@@ -454,7 +454,7 @@ class CMB(object):
 
       # Rayleigh-Jeans temperature freq dpdces
       f = lambda nu: self.convertIntSITo(nu, kind="tempKrj")
-      intToTempRJ = np.array(map(f, self.Nu))
+      intToTempRJ = np.array(list(map(f, self.Nu)))
       #
       data[:,17] = data[:,1] * intToTempRJ
       data[:,18] = data[:,2] * intToTempRJ
@@ -465,7 +465,6 @@ class CMB(object):
       data[:,23] = data[:,7] * intToTempRJ
       data[:,24] = data[:,8] * intToTempRJ
 
-      
       np.savetxt(self.pathFreqDpdces, data)
 
 
@@ -719,17 +718,17 @@ class CMB(object):
       """
 
       L = np.linspace(10., 1.e4, 2001)
-      ClCmb = np.array(map(self.funlensedTT, L))
+      ClCmb = np.array(list(map(self.funlensedTT, L)))
 
       # no-wiggle power spectrum
       forUnlensedTTNoWiggle = UnivariateSpline(np.log(L), np.log(ClCmb), k=3, s=20., ext='const')
       funlensedTTNoWiggle = lambda l: np.exp(forUnlensedTTNoWiggle(np.log(l)))
-      ClCmbNoWiggle = np.array(map(funlensedTTNoWiggle, L))
+      ClCmbNoWiggle = np.array(list(map(funlensedTTNoWiggle, L)))
 
       # wiggle-only power spewctrum
       forUnlensedTTWiggleOnly = UnivariateSpline(np.log(L), ClCmb-ClCmbNoWiggle, k=3, s=0., ext='const')
       funlensedTTWiggleOnly = lambda l: forUnlensedTTWiggleOnly(np.log(l))
-      ClCmbWiggleOnly = np.array(map(funlensedTTWiggleOnly, L))
+      ClCmbWiggleOnly = np.array(list(map(funlensedTTWiggleOnly, L)))
 
       if test:
          
@@ -1033,10 +1032,10 @@ class CIBWuDore17(CMB):
    def plot(self):
       # check the interpolation
       L = np.logspace(np.log10(1.), np.log10(1.e5), 1001, 10.)
-      Cl_1h = np.array(map(self.fCIB_1h, L))
-      Cl_2h = np.array(map(self.fCIB_2h, L))
-      Cl_shot = np.array(map(self.fCIB_shot, L))
-      Cl = np.array(map(self.fCIB, L))
+      Cl_1h = np.array(list(map(self.fCIB_1h, L)))
+      Cl_2h = np.array(list(map(self.fCIB_2h, L)))
+      Cl_shot = np.array(list(map(self.fCIB_shot, L)))
+      Cl = np.array(list(map(self.fCIB, L)))
       
       # superimpose the data points to check
       nu1, nu2 = np.sort([self.nu1, self.nu2])

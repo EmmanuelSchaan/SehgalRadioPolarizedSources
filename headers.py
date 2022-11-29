@@ -15,6 +15,9 @@ import imp
 from astropy.io import fits   # for saving/reeading maps
 import colormaps as cmaps  # for viridis and plasma colormaps
 
+# Yu Feng's version of multiprocessing, relying on forking rather than pickling
+import sharedmem
+
 # for faster FFT
 #import pyfftw
 #pyfftw.interfaces.cache.enable() # so subsequent FFTs use the wisdom from the first one
@@ -26,11 +29,12 @@ import colormaps as cmaps  # for viridis and plasma colormaps
 
 from matplotlib import rc
 #rc('font',**{'size':'20','family':'sans-serif','sans-serif':['Computer Modern Sans serif']})
-rc('font',**{'size':'22','family':'serif','serif':['CMU serif']})
-rc('mathtext', **{'fontset':'cm'})
-rc('text', usetex=True)
-rc('text.latex', preamble=r'\usepackage{amsmath}, \usepackage{amssymb}')
-#rc('font', size=20)
+#rc('font',**{'size':'22','family':'serif','serif':['CMU serif']})
+rc('font',**{'size':'22'})
+#rc('mathtext', **{'fontset':'cm'})
+#rc('text', usetex=True)
+#rc('text.latex', preamble=r'\usepackage{amsmath}, \usepackage{amssymb}')
+##rc('font', size=20)
 rc('legend',**{'fontsize':'18'})
 
 ##################################################################################

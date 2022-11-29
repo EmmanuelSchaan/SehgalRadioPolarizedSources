@@ -26,8 +26,8 @@ class FlatMap(object):
       self.data = np.zeros((nX,nY))
    
       lx = np.zeros(nX)
-      lx[:nX/2+1] = 2.*np.pi/sizeX * np.arange(nX//2+1)
-      lx[nX/2+1:] = 2.*np.pi/sizeX * np.arange(-nX//2+1, 0, 1)
+      lx[:nX//2+1] = 2.*np.pi/sizeX * np.arange(nX//2+1)
+      lx[nX//2+1:] = 2.*np.pi/sizeX * np.arange(-nX//2+1, 0, 1)
       ly = 2.*np.pi/sizeY * np.arange(nY//2+1)
       self.lx, self.ly = np.meshgrid(lx, ly, indexing='ij')
       
@@ -454,7 +454,7 @@ class FlatMap(object):
       if fsCl is None:
          sCl = Cl*np.sqrt(2)
       else:
-         sCl = np.array(map(fsCl, lCen))
+         sCl = np.array(list(map(fsCl, lCen)))
       # In case of a cross-correlation, Cl may be negative.
       # the absolute value is then still some estimate of the error bar
       sCl = np.abs(sCl)
@@ -475,7 +475,7 @@ class FlatMap(object):
          #
          for f in theory:
             L = np.logspace(np.log10(1.), np.log10(np.max(ell)), 201, 10.)
-            ClExpected = np.array(map(f, L))
+            ClExpected = np.array(list(map(f, L)))
             ax.plot(L, factor*ClExpected, 'k')
          #
 #         ax.axhline(0.)
@@ -622,7 +622,7 @@ class FlatMap(object):
       
       # flatten the Fourier data,
       # and put in it the value of Cl
-      dataFourier = np.array(map(fCl, self.l.flatten()))
+      dataFourier = np.array(list(map(fCl, self.l.flatten())))
       dataFourier = np.nan_to_num(dataFourier)
       # rescale by finite volume
       dataFourier *= self.sizeX*self.sizeY
@@ -640,7 +640,7 @@ class FlatMap(object):
       # for each ell vector,
       # generate a Gaussian random number with variance = cl
       f = lambda var: np.random.normal(0., scale=np.sqrt(var)+1.e-16) * np.exp(1j*np.random.uniform(0., 2.*np.pi))
-      dataFourier = np.array(map(f, dataFourier.flatten()))
+      dataFourier = np.array(list(map(f, dataFourier.flatten())))
       # reshape it
       dataFourier = dataFourier.reshape(np.shape(self.l))
       
@@ -677,7 +677,7 @@ class FlatMap(object):
 
       # multiply by desired power spectrum
       f = lambda l: np.sqrt(fCl(l))
-      clFourier = np.array(map(f, self.l.flatten()))
+      clFourier = np.array(list(map(f, self.l.flatten())))
       clFourier = np.nan_to_num(clFourier)
       clFourier = clFourier.reshape(np.shape(self.l))
       dataFourier *= clFourier
@@ -813,7 +813,7 @@ class FlatMap(object):
       """
       if dataFourier is None:
          dataFourier = self.dataFourier.copy()
-      W = np.array(map(fW, self.l.flatten()))
+      W = np.array(list(map(fW, self.l.flatten())))
       W = W.reshape(self.l.shape)
       if test:
          self.plotFourier(dataFourier=W)
@@ -975,7 +975,7 @@ class FlatMap(object):
          dataFourier = self.dataFourier.copy()
    
       f = lambda z: np.abs(z) * np.exp(1j*np.random.uniform(0., 2.*np.pi))
-      resultFourier = np.array(map(f, dataFourier.flatten()))
+      resultFourier = np.array(list(map(f, dataFourier.flatten())))
       resultFourier = resultFourier.reshape(dataFourier.shape)
       return resultFourier
    
@@ -1487,7 +1487,7 @@ class FlatMap(object):
       """the normalization is N_l^phiphi,
       obtained by evaluating the analytical calculation for the reconstruction noise
       """
-      W = np.array(map(fN_phi_TT, self.l.flatten()))
+      W = np.array(list(map(fN_phi_TT, self.l.flatten())))
       W = np.nan_to_num(W)
       W = W.reshape(self.l.shape)
       if test:
@@ -1528,13 +1528,13 @@ class FlatMap(object):
          if test:
             # see if we used too many/few bins for power spectrum
             L = np.linspace(0., 8.e3, 10001)
-            F = np.array(map(f, L))
+            F = np.array(list(map(f, L)))
             plt.loglog(L, F, 'b')
             plt.loglog(L, -F, 'r')
             plt.show()
          
          # make it the normalization map
-         W = np.array(map(f, self.l.flatten()))
+         W = np.array(list(map(f, self.l.flatten())))
          W = np.nan_to_num(1./W)
          W = W.reshape(self.l.shape)
          result += W
@@ -1566,7 +1566,7 @@ class FlatMap(object):
             if not np.isfinite(result):
                result = 0.
             return result
-         iVarFourier = np.array(map(f, self.l.flatten()))
+         iVarFourier = np.array(list(map(f, self.l.flatten())))
          iVarFourier = iVarFourier.reshape(self.l.shape)
          iVar = self.inverseFourier(dataFourier=iVarFourier)
 
@@ -1578,7 +1578,7 @@ class FlatMap(object):
             if not np.isfinite(result):
                result = 0.
             return result
-         CFourier = np.array(map(f, self.l.flatten()))
+         CFourier = np.array(list(map(f, self.l.flatten())))
          CFourier = CFourier.reshape(self.l.shape)
 
          # term 1x
@@ -1617,7 +1617,7 @@ class FlatMap(object):
             if not np.isfinite(result):
                result = 0.
             return result
-         WFFourier = np.array(map(f, self.l.flatten()))
+         WFFourier = np.array(list(map(f, self.l.flatten())))
          WFFourier = WFFourier.reshape(self.l.shape)
 
          # term 2
@@ -1762,7 +1762,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      iVarFourier = np.array(map(f, self.l.flatten()))
+      iVarFourier = np.array(list(map(f, self.l.flatten())))
       iVarFourier = iVarFourier.reshape(self.l.shape)
       iVar = self.inverseFourier(dataFourier=iVarFourier)
 
@@ -1775,7 +1775,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      CFourier = np.array(map(f, self.l.flatten()))
+      CFourier = np.array(list(map(f, self.l.flatten())))
       CFourier = CFourier.reshape(self.l.shape)
 
       # term 1x
@@ -1815,7 +1815,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      WFFourier = np.array(map(f, self.l.flatten()))
+      WFFourier = np.array(list(map(f, self.l.flatten())))
       WFFourier = WFFourier.reshape(self.l.shape)
 
       # term 2
@@ -1889,7 +1889,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      iVarFourier = np.array(map(f, self.l.flatten()))
+      iVarFourier = np.array(list(map(f, self.l.flatten())))
       iVarFourier = iVarFourier.reshape(self.l.shape)
       iVar = self.inverseFourier(dataFourier=iVarFourier)
 
@@ -1901,7 +1901,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      CFourier = np.array(map(f, self.l.flatten()))
+      CFourier = np.array(list(map(f, self.l.flatten())))
       CFourier = CFourier.reshape(self.l.shape)
 
       # term 1x
@@ -1940,7 +1940,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      WFFourier = np.array(map(f, self.l.flatten()))
+      WFFourier = np.array(list(map(f, self.l.flatten())))
       WFFourier = WFFourier.reshape(self.l.shape)
       # term 2
       term2_x = self.inverseFourier(dataFourier= self.lx * WFFourier)
@@ -1957,7 +1957,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      fgWFFourier = np.array(map(f, self.l.flatten()))
+      fgWFFourier = np.array(list(map(f, self.l.flatten())))
       fgWFFourier = fgWFFourier.reshape(self.l.shape)
       # term 2
       term2_x_fg = self.inverseFourier(dataFourier= self.lx * fgWFFourier)
@@ -2055,7 +2055,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      iVarFourier = np.array(map(f, self.l.flatten()))
+      iVarFourier = np.array(list(map(f, self.l.flatten())))
       iVarFourier = iVarFourier.reshape(self.l.shape)
       iVar = self.inverseFourier(dataFourier=iVarFourier)
 
@@ -2070,7 +2070,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      CFourier = np.array(map(f, self.l.flatten()))
+      CFourier = np.array(list(map(f, self.l.flatten())))
       CFourier = CFourier.reshape(self.l.shape)
 
       # term x
@@ -2207,7 +2207,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      iVarFourier = np.array(map(f, self.l.flatten()))
+      iVarFourier = np.array(list(map(f, self.l.flatten())))
       iVarFourier = iVarFourier.reshape(self.l.shape)
       # multiply by data squared modulus
       iVarFourier *= np.abs(dataFourier)**2
@@ -2221,7 +2221,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      CFourier = np.array(map(f, self.l.flatten()))
+      CFourier = np.array(list(map(f, self.l.flatten())))
       CFourier = CFourier.reshape(self.l.shape)
       # multiply by data squared modulus
       CFourier *= np.abs(dataFourier)**2
@@ -2262,7 +2262,7 @@ class FlatMap(object):
          if not np.isfinite(result):
             result = 0.
          return result
-      WFFourier = np.array(map(f, self.l.flatten()))
+      WFFourier = np.array(list(map(f, self.l.flatten())))
       WFFourier = WFFourier.reshape(self.l.shape)
       # multiply by data squared modulus
       WFFourier *= np.abs(dataFourier)**2
@@ -2381,7 +2381,7 @@ class FlatMap(object):
          return result
       if test:
          print("testing derivative")
-         F = np.array(map(fdLnl2C0dLnl, self.l.flatten()))
+         F = np.array(list(map(fdLnl2C0dLnl, self.l.flatten())))
          plt.semilogx(self.l.flatten(), F, 'b.')
          plt.show()
 
@@ -2892,7 +2892,7 @@ class FlatMap(object):
          result = np.log(result) / (2.*e)
          return result
       if test:
-         F = np.array(map(fdLnC0dLnl, self.l.flatten()))
+         F = np.array(list(map(fdLnC0dLnl, self.l.flatten())))
          plt.semilogx(self.l.flatten(), F, 'b.')
          plt.show()
 
@@ -2986,7 +2986,7 @@ class FlatMap(object):
          result = np.log(result) / (2.*e)
          return result
       if test:
-         F = np.array(map(fdLnC0dLnl, self.l.flatten()))
+         F = np.array(list(map(fdLnC0dLnl, self.l.flatten())))
          plt.semilogx(self.l.flatten(), F, 'b.')
          plt.show()
 
@@ -3705,7 +3705,7 @@ class FlatMap(object):
          result = np.log(result) / (2.*e)
          return result
       if test:
-         F = np.array(map(fdLnC0dLnl, self.l.flatten()))
+         F = np.array(list(map(fdLnC0dLnl, self.l.flatten())))
          plt.semilogx(self.l.flatten(), F, 'b.')
          plt.show()
 
