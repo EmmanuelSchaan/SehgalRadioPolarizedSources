@@ -18,7 +18,7 @@ using Setfield
 using Statistics
 
 export load_hdf5_cutouts, load_jld2_cutouts, get_foreground_noise, get_MAPs, sims, fluxcuts, 
-    get_fiducial_Cℓ, main_MAP_grid, noises, FgDataContrib, load_ptsrclens_dataset
+    get_fiducial_Cℓ, main_MAP_grid, noises, FgDataContrib, load_ptsrclens_dataset, MAP_filename
 
     
 const sims = 1:40
@@ -167,92 +167,70 @@ simulation-specific extra non-linear power).
 
 end
 
-
-"""
-Compute the joint MAP for some sims.
-"""
-function get_MAPs(;
-    Cℓ, Ms, gs, ϕs, noise_kwargs, ℓmax_data, polfrac_scale, ℓedges, fg_noise,
-    Nbatch=16, MAPs=nothing, sims=sims
-)
-
+function MAP_filename(extension; source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, sim)
+    datadir("MAPs", savename((;source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, sim), extension))
 end
 
-
-
-function main_MAP_grid(;source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, T=Float64, Nbatch=16, overwrite=false, sims=sims)
+function get_MAPs(;
+    source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, sim, 
+    Nbatch=16, T=Float64
+)
     
-    @show (source, survey, freq, ℓmax_data, fluxcut, polfrac_scale)
-
     ℓedges = [2; 100:50:500; round.(Int, 10 .^ range(log10(502), log10(5000), length=40))];
 
+    config = (;source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, sim)
+    filename = MAP_filename("jld2"; config...)
 
-    pbar = Progress(7*length(sims), 1, "get_MAPs: ")
-    ProgressMeter.update!(pbar)
-    update_pbar = RemoteChannel(()->Channel{Bool}(), 1)
-    @async while take!(update_pbar)
-        next!(pbar)
-    end
+    sim′ = mod(sim, maximum(sims)) + 1
 
-    pool = CachingPool(procs())
-    
-    MAPs = pmap(pool, sims) do sim
+    MAPs = Dict(map([
 
-        sim′ = mod(sim,maximum(sims))+1
+        (FG_FREE,               false),
+        (FG_FREE,               true),
+        (CUTOUT_CORRELATED,     true),
+        (CUTOUT_UNCORRELATED,   true),
+        (CUTOUT_CORRELATED,     false),
+        (GAUSSIAN,              true),
+        (GAUSSIAN_OFF_BY_SIGMA, true)
 
-        Dict(map([
+    ]) do (fg_data_contrib, fg_cov_modeled)
 
-            (FG_FREE,               false),
-            (FG_FREE,               true),
-            (CUTOUT_CORRELATED,     true),
-            (CUTOUT_UNCORRELATED,   true),
-            (CUTOUT_CORRELATED,     false),
-            (GAUSSIAN,              true),
-            (GAUSSIAN_OFF_BY_SIGMA, true)
+        (;ds, ϕ, g, Mg) = load_ptsrclens_dataset(;
+            sim, T, source, survey, freq, ℓmax_data, fluxcut, 
+            polfrac_scale, fg_data_contrib, fg_cov_modeled
+        )
 
-        ]) do (fg_data_contrib, fg_cov_modeled)
+        (string(fg_data_contrib), fg_cov_modeled) => try
 
-            @unpack ds, ϕ, g, Mg = load_ptsrclens_dataset(;
-                sim, T, source, survey, freq, ℓmax_data, fluxcut, 
-                polfrac_scale, fg_data_contrib, fg_cov_modeled
+            (fJ, ϕJ, history) = MAP_joint(
+                ds,
+                nsteps   = 60,
+                progress = false,
+                αtol     = 1e-6, 
+                nburnin_update_hessian = Inf,
+                history_keys = (:f, :ϕ)
             )
 
-            (string(fg_data_contrib), fg_cov_modeled) => try
-
-                (fJ, ϕJ, history) = MAP_joint(
-                    ds,
-                    nsteps   = 60,
-                    progress = false,
-                    αtol     = 1e-6, 
-                    nburnin_update_hessian = Inf,
-                    history_keys = (:f, :ϕ)
-                )
-
-                gAϕ = map(history) do h
-                    (;f, ϕ) = h
-                    gAϕ = Base.@invokelatest(gradient(Aϕ -> lnP(0,f,ϕ,(;Aϕ),ds), ones(Float32,length(ℓedges)-1)))[1]
-                    mean(reduce(hcat, unbatch.(gAϕ)), dims=1)[:]
-                end
-
-                put!(update_pbar, true)
-                (fJ=cpu(fJ), ϕJ=cpu(ϕJ), gAϕ)
-                
-            catch err
-                if (err isa InterruptException) || (err isa RemoteException && err.captured isa CapturedException && err.captured.ex isa InterruptException)
-                    rethrow(err)
-                else
-                    @warn "$sim $fg_data_contrib $fg_cov_modeled" err
-                    nothing
-                end
+            gAϕ = map(history) do h
+                (;f, ϕ) = h
+                gAϕ = Base.@invokelatest(gradient(Aϕ -> lnP(0,f,ϕ,(;Aϕ),ds), ones(Float32,length(ℓedges)-1)))[1]
+                mean(reduce(hcat, unbatch.(gAϕ)), dims=1)[:]
             end
 
-        end...)
+            (fJ=cpu(fJ), ϕJ=cpu(ϕJ), gAϕ)
+            
+        catch err
+            if (err isa InterruptException) || (err isa RemoteException && err.captured isa CapturedException && err.captured.ex isa InterruptException)
+                rethrow(err)
+            else
+                @warn "$filename" err
+                nothing
+            end
+        end
 
-    end
+    end)
     
-    filename = datadir("MAPs", savename((;source,survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch), "jld2"))
-
-    @time save(filename, "MAPs", MAPs)
+    save(filename, "MAPs", MAPs)
 
 end
 
@@ -277,14 +255,14 @@ function load_ptsrclens_dataset(;
     storage = CUDA.functional() ? CuArray : Array,
 )
 
-    @unpack ϕs, κs, gs, Ms = load_jld2_cutouts()
+    @unpack (ϕs, κs, gs, Ms) = load_jld2_cutouts()
     Cℓ = get_fiducial_Cℓ(ϕs)
     fg_noises = get_foreground_noise(;Ms, gs)
 
     noise_kwargs = noises[survey,freq]
     fg_noise = fg_noises[source][survey,freq,fluxcut]
 
-    @unpack ds, proj = load_sim(;
+    (;ds, proj) = load_sim(;
         Cℓ = Cℓ,
         θpix = 2,
         Nside = 300,
@@ -294,7 +272,7 @@ function load_ptsrclens_dataset(;
         T,
         noise_kwargs...
     )
-    @unpack B,M = ds
+    (;B, M) = ds
     T = real(eltype(ds.d))
     ds.Cϕ = Cℓ_to_Cov(:I, proj, (Cℓ.total.ϕϕ, ℓedges_ϕ, :Aϕ))
 

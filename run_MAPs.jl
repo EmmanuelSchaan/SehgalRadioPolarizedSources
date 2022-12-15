@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --nodes 1
+#SBATCH --nodes 4
 #SBATCH --ntasks-per-node 8
 #SBATCH --gpus-per-task 1
 #SBATCH -t 02:00:00
@@ -7,40 +7,46 @@
 #SBATCH -A mp107
 #SBATCH -o log/%x-%j.out
 #=
-srun -n 8 julia $(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}') "$ARGS"
+srun julia $(scontrol show job $SLURM_JOBID | awk -F= '/Command=/{print $2}')
 exit
 # =#
 
 
-if length(ARGS) == 0
+using Base.Iterators, DrWatson, CUDA, CMBLensing, PtsrcLens, MPIClusterManagers, Pidfile, ProgressMeter
 
-    using DrWatson
+CUDA.allowscalar(false)
+CMBLensing.init_MPI_workers(transport="MPI")
 
-    sources = [:ir]
-    surveys = [:deep, :wide]
-    freqs = [148]
-    ℓmax_datas = [3000, 4000, 5000]
-    fluxcuts = [Inf]
-    polfrac_scales = [1]
-    Nbatch = 16
-    overwrite = false
+# grid
+sources = [:radio]
+surveys = [:deep]
+freqs = [90, 148]
+ℓmax_datas = [3000, 4000, 5000]
+fluxcuts = [10]
+polfrac_scales = [1]
+sims = PtsrcLens.sims
 
-    configs = collect(skipmissing(map(Iterators.product(sources,surveys,freqs,ℓmax_datas,fluxcuts,polfrac_scales)) do (source,survey,freq,ℓmax_data,fluxcut,polfrac_scale)
-        args = (;source,survey,freq,ℓmax_data,fluxcut,polfrac_scale,Nbatch)
-        filename = datadir("MAPs", savename(args, "jld2"))
-        cmd = "ARGS=\"$(args)\" sbatch $(@__FILE__)"
-        if overwrite || !isfile(filename)
-            println(cmd)
-        else
-            missing
-        end
-    end))
+# params
+Nbatch = 16
 
-else
 
-    using CUDA, CMBLensing, PtsrcLens, MPIClusterManagers
-    CUDA.allowscalar(false)
-    CMBLensing.init_MPI_workers()
-    PtsrcLens.main_MAP_grid(;eval(Meta.parse(ARGS[1]))...)
+pool = CachingPool(procs())
+grid = product(sources, surveys, freqs, ℓmax_datas, fluxcuts, polfrac_scales, sims)
+
+@showprogress pmap(pool, grid) do (source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, sim)
+
+    config = (;source, survey, freq, ℓmax_data, fluxcut, polfrac_scale, sim)
+
+    pidlock = try
+        mkpidlock(MAP_filename("lock"; config...), wait=false, stale_age=60*60)
+    catch err
+        @warn err
+        return
+    end
+
+    PtsrcLens.get_MAPs(;config...)
+    close(pidlock)
 
 end
+
+CMBLensing.stop_MPI_workers()
