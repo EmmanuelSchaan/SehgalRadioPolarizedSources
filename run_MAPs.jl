@@ -22,7 +22,7 @@ sources = [:radio]
 surveys = [:deep]
 freqs = [90, 148]
 ℓmax_datas = [3000, 4000, 5000]
-fluxcuts = [10]
+fluxcuts = [2, 5, 10]
 polfrac_scales = [1]
 sims = PtsrcLens.sims
 
