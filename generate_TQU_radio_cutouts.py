@@ -15,51 +15,12 @@ plt.switch_backend('Agg')
 
 nu = np.float(sys.argv[1])
 nuStr = str(np.int(nu/1.e9))
-fluxCutmJy = np.float(sys.argv[2])
-lKnee = np.float(sys.argv[3])
-aKnee = np.float(sys.argv[4])
-beamFwhm = np.float(sys.argv[5])
-noiseT = np.float(sys.argv[6])
 
-print "nu", nu
-print "nuStr", nuStr
-print "fluxCutmJy", fluxCutmJy
-print "lKnee", lKnee
-print "aKnee", aKnee
-print "beamFwhm", beamFwhm
-print "noiseT", noiseT
-
-
-##nu = 90.e9  # [Hz]
-##nuStr = '90'
-#nu = 148.e9  # [Hz]
-#nuStr = '148'
-#
-#
-#fluxCutmJy = 10.  #5.   #2.  # [mJy]
-#
-#
-## wide survey
-#lKnee = 700.
-#aKnee = 1.4
-#beamFwhm = 1.4 # [arcmin] at 148 GHz
-##beamFwhm = 2.2 # [arcmin] at 90 GHz
-#noiseT = 2.  # [muK*arcmin] at 148 GHz 
-##noiseT = 2.  # [muK*arcmin] at 90 GHz
-#
-### deep survey
-##lKnee = 200.
-##aKnee = 2.
-##beamFwhm = 1.5 # [arcmin] at 148 GHz
-###beamFwhm = 2.3 # [arcmin] at 90 GHz
-##noiseT = 0.96  # [muK*arcmin] at 148 GHz 
-###noiseT = 0.68  # [muK*arcmin] at 90 GHz
-
-
-
+print("nu", nu)
+print("nuStr", nuStr)
 
 #####################################################################
-print "Reading healpix maps"
+print("Reading healpix maps")
 
 sehgalTMap = hp.read_map("./input/sehgal_maps/"+nuStr.zfill(3)+"_rad_pts_healpix.fits")
 
@@ -71,8 +32,6 @@ uMap = hp.read_map(pathOut + "u_radio_sehgal_"+nuStr+"ghz_muk.fits")
 
 
 nSide = hp.get_nside(tMap)
-
-cmb = CMB(beam=beamFwhm, noise=noiseT, nu1=nu, nu2=nu, lMin=30., lMaxT=3.e3, lMaxP=5.e3, fg=True, atm=True, atmProp=[lKnee, aKnee, lKnee, aKnee], name=None)
 
 ####################################################################
 # ## Read the kappa map
@@ -112,7 +71,7 @@ space = 0.5 # [deg]
 
 
 # latitudes of centers of cutouts
-nPatches = 0
+iPatch = 0
 LatCenter = np.arange(latStart + dLat/2., 90., dLat + space)
 for latCenter in LatCenter:
    latUpper = latCenter + dLat/2.
@@ -134,12 +93,9 @@ for latCenter in LatCenter:
       patchFits = patchFits==0.
       
       # if it fits
-      #if patchFits and nPatches>=17:
       if patchFits: 
-         nPatches += 1
-
-         #if nPatches>=17:
-         #if nPatches>=30:
+         iPatch += 1
+         print("Extracting cutout number "+str(iPatch))
 
          # plot the footprint
          xyz = hp.ang2vec(lonEdges, latEdges, lonlat=True)
@@ -164,33 +120,15 @@ for latCenter in LatCenter:
          cutKappaMap = hp.visufunc.cartview(kappaMap, rot=pos, lonra=lonRange, latra=latRange, xsize=xSize, ysize=ySize, return_projected_map=True, norm='hist')
          plt.close()
 
-         # generate point source mask
-         print("flux cut = "+str(fluxCutmJy)+" mJy")
-         fluxCut = fluxCutmJy * 1.e-3 * 1.e-26   # convert from [mJy] to [Jy] to [W/m^2/Hz]
-         fluxCut /= cmb.dBdT(nu, cmb.Tcmb)   # convert from [W/m^2/Hz] to [Kcmb*sr]
-         fluxCut *= 1.e6   # convert from [Kcmb*sr] to [muKcmb*sr]
-         print("ie flux cut = "+str(fluxCut)+" muKcmb*sr")
-
-
-         # select patch radius around point sources
-         maskPatchRadius = 3. * np.pi/(180.*60.)   # [arcmin] to [rad]
-         #
-         # generate point source mask 
-         cutTMapFourier = baseMap.fourier(cutTMap)
-         psMask = baseMap.pointSourceMaskMatchedFilterIsotropic(cmb.ftotalTT, fluxCut, fprof=None, dataFourier=cutTMapFourier, maskPatchRadius=maskPatchRadius, test=False)    
-            
          # save the cutouts
-         #pathOut = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/output/sehgal_maps/radio_sources/cutouts/"
          pathOut = "./output/sehgal_maps/radio_sources/cutouts/"
-#         np.savetxt(pathOut + "ps_official_sehgal_"+nuStr+"ghz_T_patch"+str(nPatches)+".txt", cutSehgalTMap)
-#         np.savetxt(pathOut + "ps_sehgal_"+nuStr+"ghz_T_patch"+str(nPatches)+".txt", cutTMap)
-#         np.savetxt(pathOut + "ps_sehgal_"+nuStr+"ghz_Q_patch"+str(nPatches)+".txt", cutQMap)
-#         np.savetxt(pathOut + "ps_sehgal_"+nuStr+"ghz_U_patch"+str(nPatches)+".txt", cutUMap)
-#         np.savetxt(pathOut + "kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap)
-         np.savetxt(pathOut + "ps_mask_"+nuStr+"ghz_"+str(np.int(round(fluxCutmJy)))+"mJy_beam"+str(round(beamFwhm,1))+"_noise"+str(round(noiseT,2))+"_lknee"+str(np.int(lKnee))+"_aknee"+str(round(aKnee,1))+"_T_patch"+str(nPatches)+".txt", psMask)
+         np.savetxt(pathOut + "ps_official_sehgal_"+nuStr+"ghz_T_patch"+str(iPatch)+".txt", cutSehgalTMap)
+         np.savetxt(pathOut + "ps_sehgal_"+nuStr+"ghz_T_patch"+str(iPatch)+".txt", cutTMap)
+         np.savetxt(pathOut + "ps_sehgal_"+nuStr+"ghz_Q_patch"+str(iPatch)+".txt", cutQMap)
+         np.savetxt(pathOut + "ps_sehgal_"+nuStr+"ghz_U_patch"+str(iPatch)+".txt", cutUMap)
+         np.savetxt(pathOut + "kappa_sehgal_patch"+str(iPatch)+".txt", cutKappaMap)
 
-         
-print "Extracted "+str(nPatches)+" cutouts"
+print("Extracted "+str(iPatch)+" cutouts")
 
 
 

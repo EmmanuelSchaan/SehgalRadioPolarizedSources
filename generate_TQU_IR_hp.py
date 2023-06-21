@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[2]:
-
-
 import healpy as hp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,28 +9,24 @@ from flat_map import *
 
 import sys
 
-# # Read one of the galaxy catalog
-
-# In[9]:
+# needed on lawrencium
+plt.switch_backend('Agg')
 
 
 # Choose input file
 sourceCatalog = sys.argv[1]
-#sourceCatalog = "IRBlastPop"
-
 
 pathOut = "./output/sehgal_maps/ir_sources/"
 pathFig = "./figures/sehgal_maps/ir_sources/"
-
 
 pathInDir = "/global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/input/sehgal_ir_galaxies/"
 pathIn = pathInDir + sourceCatalog + ".dat"
 
 # read file
-print "Read source catalog from:"
-print pathIn
+print("Read source catalog from:")
+print(pathIn)
 data = np.loadtxt(pathIn)#, max_rows=nObjMax)
-print "Reading successful"
+print("Reading successful")
 IObj = data[:,0]
 ra = data[:,1]
 dec = data[:,2]
@@ -49,36 +39,22 @@ f148_mJy = data[:,6]
 # f350_mJy = data[:,9]
 del data
 
-print "Found", len(ra), "sources"
-print "min, max, median =", np.min(f148_mJy), np.max(f148_mJy), np.median(f148_mJy), "mJy"
+print("Found", len(ra), "sources")
+print("min, max, median =", np.min(f148_mJy), np.max(f148_mJy), np.median(f148_mJy), "mJy")
 
 # histogram of source fluxes
 path = pathFig + "flux_count_"+sourceCatalog+".pdf"
 myHistogram(f148_mJy, nBins=101, nameLatex=r'$S_\text{148 GHz}$ [mJy]', semilogy=True, plot=True, path=path)
 
-
-#sys.exit()
-
 #if f148_mJy.min() >= 100.: # [mJy]
-#   print "No source below 100mJy in this catalog"
-#   print "Stopping here!"
+#   print("No source below 100mJy in this catalog")
+#   print("Stopping here!")
 #   sys.exit()
 
-
-
-
 # Throw out the objects outside of the quadrant
-
-# In[13]:
-
-
 I = np.where((ra>=0.)*(ra<=90.)*(dec>=0.)*(dec<=90.))[0]
-print "keeping", len(I), "objects out of", len(ra)
-print "ie a fraction", 1.*len(I)/len(ra)
-
-
-# In[14]:
-
+print("keeping", len(I), "objects out of", len(ra))
+print("ie a fraction", 1.*len(I)/len(ra))
 
 ra = ra[I]
 dec = dec[I]
@@ -86,34 +62,23 @@ z = z[I]
 f148_mJy = f148_mJy[I]
 
 
-
-
 # # Generate T, Q, U maps
-
 
 # Map geometry to match the Sehgal maps
 nSide = 4096 #512#4096
 nPix = hp.nside2npix(nSide)
 
-
 # get pixel indices for all galaxies
 IPix = hp.ang2pix(nSide, np.pi/2. - dec*np.pi/180., ra*np.pi/180., lonlat=False)
-
-# In[29]:
-
 
 # Generate T map
 bins = np.arange(nPix+1)-0.5
 tMap, binEdges, binIndices = stats.binned_statistic(IPix, f148_mJy, statistic='sum', bins=bins)  # flux map [mJy]
 
-print "check that the map contains the flux from all the sources", np.sum(tMap), np.sum(f148_mJy)
-print "ratio is", np.sum(tMap) / np.sum(f148_mJy)
+print("check that the map contains the flux from all the sources", np.sum(tMap), np.sum(f148_mJy))
+print("ratio is", np.sum(tMap) / np.sum(f148_mJy))
 
 tMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
-
-
-# In[30]:
-
 
 # polarization fraction: 1% from Lagache+19
 alpha = 0.01
@@ -127,16 +92,10 @@ qMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
 uMap, binEdges, binIndices = stats.binned_statistic(IPix, f148_mJy * alpha * np.sin(2.*theta), statistic='sum', bins=bins)  # flux map [mJy]
 uMap /= hp.nside2pixarea(nSide)  # surf bright map [mJy/sr]
 
-
 # try to clear memory
 del ra, dec, z, f148_mJy
 
-
 # ## Convert all maps from [mJy/sr] to [muKcmb]
-
-# In[31]:
-
-
 cmb = CMB(beam=1., noise=1., nu1=148.e9, nu2=148.e9, lMin=30., lMaxT=3.e3, lMaxP=5.e3, fg=True, atm=False, name=None)
 
 tMap *= 1.e-3 * 1.e-26  # convert from [mJy/sr] to surf bright per unit freq = [W/m^2/Hz/sr]
@@ -155,14 +114,14 @@ uMap *= 1.e6  # convert from Kcmb to muKcmb
 # The Lambda website says:
 # dT = [Jy/sr] * T_CMB / 1.072480e9 in [T_CMB units]
 # Check that it works:
-print "My conversion agrees with the Lambda website recommendation:", 1.e-26 / cmb.dBdT(148.e9, cmb.Tcmb), cmb.Tcmb / 1.072480e9
+print("My conversion agrees with the Lambda website recommendation:", 1.e-26 / cmb.dBdT(148.e9, cmb.Tcmb), cmb.Tcmb / 1.072480e9)
 
 
 # Save healpix map
 hp.write_map(pathOut + "t_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits", tMap, overwrite=True)
 hp.write_map(pathOut + "q_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits", qMap, overwrite=True)
 hp.write_map(pathOut + "u_ir_"+sourceCatalog+"_sehgal_148ghz_muk.fits", uMap, overwrite=True)
-print "All done!"
+print("All done!")
 
 
 
@@ -286,7 +245,7 @@ print "All done!"
 #         fluxCutmJy *= cmb.dBdT(148.e9, cmb.Tcmb)  # convert from [Kcmb*sr] to flux per unit freq = [W/m^2/Hz]
 #         fluxCutmJy /= 1.e-26  # convert from flux per unit freq = [W/m^2/Hz] to [Jy]
 #         fluxCutmJy *= 1.e3  # convert from [Jy] to [mJy]
-#         print "ie", fluxCutmJy, "mJy"
+#         print("ie", fluxCutmJy, "mJy")
 #         #
 #         # select patch radius around point sources
 #         maskPatchRadius = 3. * np.pi/(180.*60.)   # [arcmin] to [rad]
@@ -303,7 +262,7 @@ print "All done!"
 ##          np.savetxt("./output/sehgal_maps/cutouts/kappa_sehgal_patch"+str(nPatches)+".txt", cutKappaMap)
 #         np.savetxt("./output/sehgal_maps/cutouts/ir_"+sourceCatalog+"_mask_"+str(np.int(round(fluxCutmJy)))+"mJy_T_patch"+str(nPatches)+".txt", psMask)
 #         
-#print "Extracted "+str(nPatches)+" cutouts"
+#print("Extracted "+str(nPatches)+" cutouts")
 #
 #
 ## In[ ]:

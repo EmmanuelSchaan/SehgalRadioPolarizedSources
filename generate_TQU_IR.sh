@@ -28,7 +28,7 @@
 #python generate_TQU_IR_hp.py "IRgal_S_8"
 #python generate_TQU_IR_hp.py "IRgal_S_9"
 #python generate_TQU_IR_hp.py "IRgal_S_10"
-#python generate_TQU_IR_hp.py "IRgal_S_11"
+#python generate_TQU_IR_hp.py "IRgal_S_11" # got an error with this one
 ## BLAST very high flux population
 #python generate_TQU_IR_hp.py "IRBlastPop"
 
@@ -44,8 +44,26 @@
 #python generate_TQU_IR_cutouts.py "IRgal_S_8"
 #python generate_TQU_IR_cutouts.py "IRgal_S_9"
 #python generate_TQU_IR_cutouts.py "IRgal_S_10"
-#python generate_TQU_IR_cutouts.py "IRgal_S_11"
+#python generate_TQU_IR_cutouts.py "IRgal_S_11" # did not run this one
 # BLAST very high flux population
 #python generate_TQU_IR_cutouts.py "IRBlastPop"
 
+
+# Then create the PS masks
+# Syntax
+#python generate_TQU_IR_masks.py sourceCatalog nu fluxCutmJy lKnee aKnee beamFwhm noiseT
+
+##python generate_TQU_IR_masks.py "IRgal_S_1" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_2" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_3" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_4" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_5" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_6" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_7" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_8" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_9" 148.e9 10. 200. 2. 1.5 0.68
+python generate_TQU_IR_masks.py "IRgal_S_10" 148.e9  10. 200. 2. 1.5 0.68
+#python generate_TQU_IR_masks.py "IRgal_S_11" 148.e9 10. 200. 2. 1.5 0.68 # did not run this one
+# BLAST very high flux population
+python generate_TQU_IR_masks.py "IRBlastPop" 148.e9 10. 200. 2. 1.5 0.68
 

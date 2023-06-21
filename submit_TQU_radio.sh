@@ -15,7 +15,7 @@
 cd /global/cscratch1/sd/eschaan/SehgalRadioPolarizedSources/
 source ~/python3_profile.sh
 
-source ./generate_TQU_IR.sh
+source ./generate_TQU_radio.sh
 
 
 
